@@ -1,5 +1,7 @@
 # Quant Lab 量化研究实验工作台
 
+Personal quant research platform.
+
 首版实现数据中心模块：管理员录入股票、ETF 或基金代码，后端通过 Tushare 同步日线和周线数据，普通用户登录后查看标的档案、K线、成交量和技术指标。
 
 ## 技术栈
