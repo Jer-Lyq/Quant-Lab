@@ -15,6 +15,9 @@ def create_app():
     CORS(app, resources={r"/api/*": {"origins": app.config["CORS_ORIGINS"]}})
     app.teardown_appcontext(close_db)
 
+    with app.app_context():
+        init_db()
+
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(admin_bp, url_prefix="/api/admin")
     app.register_blueprint(market_bp, url_prefix="/api")
@@ -37,4 +40,3 @@ def create_app():
         print(f"Admin user ready: {user['username']}")
 
     return app
-

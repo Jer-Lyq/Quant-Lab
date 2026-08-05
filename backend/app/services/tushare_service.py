@@ -1,9 +1,15 @@
+import requests
 from datetime import datetime
 import math
 
 import tushare as ts
+import tushare.pro.client as tushare_client
 
 from .settings_service import get_tushare_http_url, get_tushare_token
+
+_PROXY_FREE_SESSION = requests.Session()
+_PROXY_FREE_SESSION.trust_env = False
+_QUERY_PATCHED = False
 
 
 def _token():
@@ -14,12 +20,42 @@ def _token():
 
 
 def pro_api():
+    _patch_tushare_query()
     token = _token()
     http_url = get_tushare_http_url()
     pro = ts.pro_api(token)
     pro._DataApi__token = token
     pro._DataApi__http_url = http_url
     return pro
+
+
+def _patch_tushare_query():
+    global _QUERY_PATCHED
+    if _QUERY_PATCHED:
+        return
+
+    def query_without_env_proxy(self, api_name, fields="", **kwargs):
+        req_params = {
+            "api_name": api_name,
+            "token": self._DataApi__token,
+            "params": kwargs,
+            "fields": fields,
+        }
+        response = _PROXY_FREE_SESSION.post(
+            f"{self._DataApi__http_url}/{api_name}",
+            json=req_params,
+            timeout=self._DataApi__timeout,
+        )
+        if response:
+            result = tushare_client.json.loads(response.text)
+            if result["code"] != 0:
+                raise Exception(result["msg"])
+            data = result["data"]
+            return tushare_client.pd.DataFrame(data["items"], columns=data["fields"])
+        return tushare_client.pd.DataFrame()
+
+    tushare_client.DataApi.query = query_without_env_proxy
+    _QUERY_PATCHED = True
 
 
 def normalize_date(value):

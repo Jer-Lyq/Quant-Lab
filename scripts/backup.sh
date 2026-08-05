@@ -7,9 +7,8 @@ DATE="$(date +%Y%m%d_%H%M%S)"
 
 mkdir -p "$BACKUP_DIR"
 
-if [ -f "$APP_DIR/data/quant_lab.sqlite3" ]; then
-  cp "$APP_DIR/data/quant_lab.sqlite3" "$BACKUP_DIR/quant_lab_$DATE.sqlite3"
+if [ -d "$APP_DIR/data" ]; then
+  tar -czf "$BACKUP_DIR/quant_lab_data_$DATE.tar.gz" -C "$APP_DIR" data
 fi
 
-find "$BACKUP_DIR" -name "quant_lab_*.sqlite3" -type f -mtime +7 -delete
-
+find "$BACKUP_DIR" -name "quant_lab_data_*.tar.gz" -type f -mtime +7 -delete

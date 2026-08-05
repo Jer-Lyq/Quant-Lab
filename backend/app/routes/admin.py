@@ -11,6 +11,7 @@ from ..services.settings_service import (
     get_tushare_connection_meta,
     set_setting,
 )
+from ..services.dataset_store import delete_instrument_data, replace_ohlcv_bars
 from ..services.tushare_service import fetch_bars, fetch_basic_info
 
 admin_bp = Blueprint("admin", __name__)
@@ -119,60 +120,57 @@ def sync_instrument(instrument_id):
     try:
         requested_end_date = (payload.get("end_date") or payload.get("data_end") or "").strip()
         effective_end_date = requested_end_date or datetime.now(timezone.utc).strftime("%Y%m%d")
-        total_rows = 0
+        rows_by_freq = {}
         for freq in ("daily", "weekly"):
-            rows = fetch_bars(
+            rows_by_freq[freq] = fetch_bars(
                 instrument["ts_code"],
                 instrument["asset_type"],
                 freq,
                 instrument["data_start"],
                 effective_end_date,
             )
-            for row in rows:
-                db.execute(
-                    """
-                    INSERT INTO price_bars
-                    (instrument_id, freq, trade_date, open, high, low, close, volume, amount)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(instrument_id, freq, trade_date) DO UPDATE SET
-                        open=excluded.open,
-                        high=excluded.high,
-                        low=excluded.low,
-                        close=excluded.close,
-                        volume=excluded.volume,
-                        amount=excluded.amount
-                    """,
-                    (
-                        instrument_id,
-                        freq,
-                        row["trade_date"],
-                        row["open"],
-                        row["high"],
-                        row["low"],
-                        row["close"],
-                        row["volume"],
-                        row["amount"],
-                    ),
-                )
-            total_rows += len(rows)
+        total_rows = sum(len(rows) for rows in rows_by_freq.values())
 
         if total_rows == 0:
             raise RuntimeError("Tushare returned no rows for this instrument.")
 
+        dataset = replace_ohlcv_bars(instrument, rows_by_freq, source="tushare")
+
         db.execute(
             """
             UPDATE instruments
-            SET status='ready', is_published=1, last_synced_at=?, updated_at=CURRENT_TIMESTAMP
+            SET status='ready',
+                is_published=1,
+                data_start=?,
+                data_end=?,
+                last_synced_at=?,
+                updated_at=CURRENT_TIMESTAMP
             WHERE id=?
             """,
-            (datetime.now(timezone.utc).replace(microsecond=0).isoformat(), instrument_id),
+            (
+                dataset["min_date"],
+                dataset["max_date"],
+                datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+                instrument_id,
+            ),
         )
         db.execute(
             "UPDATE sync_logs SET status=?, message=?, rows_synced=?, finished_at=CURRENT_TIMESTAMP WHERE id=?",
             ("success", "sync completed", total_rows, log_id),
         )
         db.commit()
-        return jsonify({"status": "success", "rows_synced": total_rows})
+        return jsonify(
+            {
+                "status": "success",
+                "rows_synced": total_rows,
+                "dataset": {
+                    "type": "ohlcv",
+                    "row_count": dataset["row_count"],
+                    "min_date": dataset["min_date"],
+                    "max_date": dataset["max_date"],
+                },
+            }
+        )
     except Exception as exc:
         db.execute(
             "UPDATE sync_logs SET status=?, message=?, finished_at=CURRENT_TIMESTAMP WHERE id=?",
@@ -180,6 +178,31 @@ def sync_instrument(instrument_id):
         )
         db.commit()
         return jsonify({"error": "sync_failed", "message": str(exc)}), 500
+
+
+@admin_bp.delete("/instruments/<int:instrument_id>")
+@require_admin
+def delete_instrument(instrument_id):
+    db = get_db()
+    instrument = db.execute("SELECT * FROM instruments WHERE id = ?", (instrument_id,)).fetchone()
+    if not instrument:
+        return jsonify({"error": "instrument_not_found"}), 404
+
+    try:
+        delete_instrument_data(instrument)
+        db.execute("DELETE FROM sync_logs WHERE instrument_id=?", (instrument_id,))
+        db.execute("DELETE FROM price_bars WHERE instrument_id=?", (instrument_id,))
+        db.execute("DELETE FROM instrument_datasets WHERE instrument_id=?", (instrument_id,))
+        db.execute(
+            "DELETE FROM research_requests WHERE ts_code=? AND asset_type=?",
+            (instrument["ts_code"], instrument["asset_type"]),
+        )
+        db.execute("DELETE FROM instruments WHERE id=?", (instrument_id,))
+        db.commit()
+        return jsonify({"status": "deleted", "instrument_id": instrument_id})
+    except Exception as exc:
+        db.rollback()
+        return jsonify({"error": "delete_failed", "message": str(exc)}), 500
 
 
 @admin_bp.patch("/instruments/<int:instrument_id>")

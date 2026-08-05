@@ -3,6 +3,7 @@ from flask import Blueprint, g, jsonify, request
 from ..auth import require_auth
 from ..db import get_db
 from ..engine.market_engine import build_indicators, build_market_snapshot
+from ..services.dataset_store import read_ohlcv_bars
 
 market_bp = Blueprint("market", __name__)
 
@@ -12,8 +13,8 @@ market_bp = Blueprint("market", __name__)
 def instruments():
     rows = get_db().execute(
         """
-        SELECT id, ts_code, name, asset_type, market, industry, area, is_published,
-               status, last_synced_at, updated_at
+        SELECT id, ts_code, name, asset_type, market, industry, area, data_start, data_end,
+               is_published, status, last_synced_at, updated_at
         FROM instruments
         WHERE is_published=1 OR ?='admin'
         ORDER BY updated_at DESC
@@ -92,17 +93,13 @@ def research_request():
 
 def _bars_for(instrument_id, freq):
     instrument = get_db().execute(
-        "SELECT id FROM instruments WHERE id=? AND (is_published=1 OR ?='admin')",
+        """
+        SELECT id, ts_code, asset_type
+        FROM instruments
+        WHERE id=? AND (is_published=1 OR ?='admin')
+        """,
         (instrument_id, g.current_user["role"]),
     ).fetchone()
     if not instrument:
         return []
-    return get_db().execute(
-        """
-        SELECT trade_date, open, high, low, close, volume, amount
-        FROM price_bars
-        WHERE instrument_id=? AND freq=?
-        ORDER BY trade_date ASC
-        """,
-        (instrument_id, freq),
-    ).fetchall()
+    return read_ohlcv_bars(instrument, freq)

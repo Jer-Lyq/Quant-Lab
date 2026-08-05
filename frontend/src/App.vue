@@ -52,19 +52,31 @@
             <template #prefix><Search :size="16" /></template>
           </el-input>
           <div class="instrument-list">
-            <button
+            <div
               v-for="item in filteredInstruments"
               :key="item.id"
-              class="instrument-item"
+              class="instrument-row"
               :class="{ active: selected?.id === item.id }"
-              @click="selectInstrument(item)"
             >
-              <span>
-                <strong>{{ item.name }}</strong>
-                <small>{{ item.ts_code }} · {{ typeLabel(item.asset_type) }}</small>
-              </span>
-              <em>{{ item.status }}</em>
-            </button>
+              <button class="instrument-item" @click="selectInstrument(item)">
+                <span>
+                  <strong>{{ item.name }}</strong>
+                  <small>{{ item.ts_code }} · {{ typeLabel(item.asset_type) }}</small>
+                </span>
+                <em>{{ item.status }}</em>
+              </button>
+              <button
+                v-if="isAdmin"
+                class="instrument-delete"
+                type="button"
+                :aria-label="`删除 ${item.name}`"
+                :title="`删除 ${item.name}`"
+                :disabled="loading"
+                @click="deleteInstrument(item)"
+              >
+                <Trash2 :size="14" />
+              </button>
+            </div>
           </div>
         </aside>
 
@@ -264,9 +276,9 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import * as echarts from 'echarts'
-import { Database, KeyRound, LogIn, Plus, RefreshCw, Search } from '@lucide/vue'
+import { Database, KeyRound, LogIn, Plus, RefreshCw, Search, Trash2 } from '@lucide/vue'
 
 const API_BASE = import.meta.env.VITE_API_BASE || '/api'
 const token = ref(localStorage.getItem('quant_lab_token') || '')
@@ -438,8 +450,19 @@ async function loadInstruments() {
   try {
     const data = await request('/instruments')
     instruments.value = data.instruments
-    if (!selected.value && instruments.value.length) {
+    const current = selected.value
+      ? instruments.value.find((item) => item.id === selected.value.id)
+      : null
+    if (current) {
+      selected.value = current
+    } else if (instruments.value.length) {
       await selectInstrument(instruments.value[0])
+    } else {
+      selected.value = null
+      bars.value = []
+      analytics.value = { overview: {}, factors: [], indicators: {} }
+      indicators.value = {}
+      chart?.clear()
     }
   } catch (error) {
     ElMessage.error(error.message)
@@ -504,6 +527,42 @@ async function syncSelected(options = {}) {
   } catch (error) {
     ElMessage.error(error.message)
     return false
+  } finally {
+    loading.value = false
+  }
+}
+
+async function deleteInstrument(item) {
+  if (!isAdmin.value || !item) return
+  try {
+    await ElMessageBox.confirm(
+      `删除 ${item.name}（${item.ts_code}）会同时删除这个标的的行情文件、指标缓存和同步诊断数据。`,
+      '删除标的',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger'
+      }
+    )
+  } catch {
+    return
+  }
+
+  loading.value = true
+  try {
+    await request(`/admin/instruments/${item.id}`, { method: 'DELETE' })
+    if (selected.value?.id === item.id) {
+      selected.value = null
+      bars.value = []
+      analytics.value = { overview: {}, factors: [], indicators: {} }
+      indicators.value = {}
+      chart?.clear()
+    }
+    await loadInstruments()
+    ElMessage.success('标的及相关数据已删除')
+  } catch (error) {
+    ElMessage.error(error.message)
   } finally {
     loading.value = false
   }

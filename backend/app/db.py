@@ -109,4 +109,18 @@ CREATE TABLE IF NOT EXISTS research_requests (
 
 CREATE INDEX IF NOT EXISTS idx_price_bars_lookup
 ON price_bars(instrument_id, freq, trade_date);
+
+CREATE TABLE IF NOT EXISTS instrument_datasets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    instrument_id INTEGER NOT NULL REFERENCES instruments(id) ON DELETE CASCADE,
+    dataset_type TEXT NOT NULL,
+    storage_kind TEXT NOT NULL DEFAULT 'sqlite',
+    relative_path TEXT NOT NULL,
+    row_count INTEGER NOT NULL DEFAULT 0,
+    min_date TEXT,
+    max_date TEXT,
+    source TEXT,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(instrument_id, dataset_type)
+);
 """
