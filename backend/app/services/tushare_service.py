@@ -1,11 +1,14 @@
-import requests
-from datetime import datetime
 import math
+from datetime import datetime
 
+import pandas as pd
+import requests
 import tushare as ts
 import tushare.pro.client as tushare_client
 
 from .settings_service import get_tushare_http_url, get_tushare_token
+
+SUPPORTED_ASSET_TYPES = frozenset({"stock", "etf", "index", "fund"})
 
 _PROXY_FREE_SESSION = requests.Session()
 _PROXY_FREE_SESSION.trust_env = False
@@ -68,31 +71,87 @@ def normalize_date(value):
 
 
 def fetch_basic_info(ts_code, asset_type):
-    pro = pro_api()
-    if asset_type == "stock":
-        frame = pro.stock_basic(
-            exchange="",
-            list_status="L",
-            fields="ts_code,name,area,industry,market,list_date",
-        )
-        match = frame[frame["ts_code"] == ts_code]
-        if match.empty:
-            return {"ts_code": ts_code, "name": ts_code, "market": None}
-        row = match.iloc[0].to_dict()
-        row["list_date"] = normalize_date(row.get("list_date"))
-        return row
+    fetcher = _BASIC_INFO_FETCHERS.get(asset_type)
+    if fetcher is None:
+        raise ValueError(f"Unsupported asset type: {asset_type}")
+    return fetcher(pro_api(), ts_code)
 
+
+def fetch_bars(ts_code, asset_type, freq, start_date=None, end_date=None):
+    if freq not in {"daily", "weekly"}:
+        raise ValueError(f"Unsupported frequency: {freq}")
+    fetcher = _BAR_FRAME_FETCHERS.get(asset_type)
+    if fetcher is None:
+        raise ValueError(f"Unsupported asset type: {asset_type}")
+
+    start = (start_date or "20180101").replace("-", "")
+    end = (end_date or datetime.now().strftime("%Y%m%d")).replace("-", "")
+    frame = fetcher(pro_api(), ts_code, freq, start, end)
+    return _frame_to_rows(frame)
+
+
+def _fetch_stock_basic(pro, ts_code):
+    frame = pro.stock_basic(
+        ts_code=ts_code,
+        fields="ts_code,name,area,industry,market,list_date",
+    )
+    row = _matching_row(frame, ts_code)
+    if row is None:
+        return _fallback_basic(ts_code)
+    row["list_date"] = normalize_date(row.get("list_date"))
+    return row
+
+
+def _fetch_etf_basic(pro, ts_code):
+    frame = pro.etf_basic(
+        ts_code=ts_code,
+        fields=(
+            "ts_code,csname,extname,cname,index_code,index_name,list_date,"
+            "exchange,mgr_name,etf_type"
+        ),
+    )
+    row = _matching_row(frame, ts_code)
+    if row is None:
+        return _fallback_basic(ts_code, market="E")
+    return {
+        "ts_code": row.get("ts_code", ts_code),
+        "name": row.get("extname") or row.get("csname") or row.get("cname") or ts_code,
+        "market": row.get("exchange") or "E",
+        "industry": row.get("etf_type") or row.get("index_name"),
+        "area": None,
+        "list_date": normalize_date(row.get("list_date")),
+    }
+
+
+def _fetch_index_basic(pro, ts_code):
+    frame = pro.index_basic(
+        ts_code=ts_code,
+        fields="ts_code,name,market,publisher,category,base_date,base_point,list_date",
+    )
+    row = _matching_row(frame, ts_code)
+    if row is None:
+        return _fallback_basic(ts_code)
+    return {
+        "ts_code": row.get("ts_code", ts_code),
+        "name": row.get("name") or ts_code,
+        "market": row.get("market"),
+        "industry": row.get("category"),
+        "area": row.get("publisher"),
+        "list_date": normalize_date(row.get("list_date") or row.get("base_date")),
+    }
+
+
+def _fetch_fund_basic(pro, ts_code):
     frame = pro.fund_basic(
         market="E",
         fields="ts_code,name,management,custodian,fund_type,found_date,due_date",
     )
-    match = frame[frame["ts_code"] == ts_code]
-    if match.empty:
-        return {"ts_code": ts_code, "name": ts_code, "market": "E"}
-    row = match.iloc[0].to_dict()
+    row = _matching_row(frame, ts_code)
+    if row is None:
+        return _fallback_basic(ts_code, market="E")
     return {
         "ts_code": row.get("ts_code", ts_code),
-        "name": row.get("name", ts_code),
+        "name": row.get("name") or ts_code,
         "market": "E",
         "industry": row.get("fund_type"),
         "area": None,
@@ -100,23 +159,62 @@ def fetch_basic_info(ts_code, asset_type):
     }
 
 
-def fetch_bars(ts_code, asset_type, freq, start_date=None, end_date=None):
-    pro = pro_api()
-    start = (start_date or "20180101").replace("-", "")
-    end = (end_date or datetime.now().strftime("%Y%m%d")).replace("-", "")
+def _fetch_stock_bars(pro, ts_code, freq, start, end):
+    api = pro.daily if freq == "daily" else pro.weekly
+    return api(ts_code=ts_code, start_date=start, end_date=end)
 
-    if asset_type == "stock":
-        frame = pro.daily(ts_code=ts_code, start_date=start, end_date=end) if freq == "daily" else pro.weekly(ts_code=ts_code, start_date=start, end_date=end)
-    else:
-        api = pro.fund_daily if freq == "daily" else pro.fund_weekly
-        frame = api(ts_code=ts_code, start_date=start, end_date=end)
 
+def _fetch_etf_bars(pro, ts_code, freq, start, end):
+    daily = pro.fund_daily(ts_code=ts_code, start_date=start, end_date=end)
+    return daily if freq == "daily" else _aggregate_weekly_frame(daily)
+
+
+def _fetch_index_bars(pro, ts_code, freq, start, end):
+    api = pro.index_daily if freq == "daily" else pro.index_weekly
+    return api(ts_code=ts_code, start_date=start, end_date=end)
+
+
+def _fetch_fund_bars(pro, ts_code, freq, start, end):
+    daily = pro.fund_daily(ts_code=ts_code, start_date=start, end_date=end)
+    return daily if freq == "daily" else _aggregate_weekly_frame(daily)
+
+
+def _aggregate_weekly_frame(frame):
+    if frame is None or frame.empty:
+        return frame
+
+    working = frame.copy()
+    for column in ("trade_date", "open", "high", "low", "close", "vol", "amount"):
+        if column not in working.columns:
+            working[column] = None
+    working["trade_date"] = working["trade_date"].astype(str)
+    working["_trade_date"] = pd.to_datetime(working["trade_date"], format="%Y%m%d", errors="coerce")
+    working = working.dropna(subset=["_trade_date"]).sort_values("_trade_date")
+    if working.empty:
+        return working
+
+    working["_week"] = working["_trade_date"].dt.to_period("W-FRI")
+    return (
+        working.groupby("_week", sort=True)
+        .agg(
+            trade_date=("trade_date", "last"),
+            open=("open", "first"),
+            high=("high", "max"),
+            low=("low", "min"),
+            close=("close", "last"),
+            vol=("vol", "sum"),
+            amount=("amount", "sum"),
+        )
+        .reset_index(drop=True)
+    )
+
+
+def _frame_to_rows(frame):
     if frame is None or frame.empty:
         return []
 
-    frame = frame.sort_values("trade_date")
     rows = []
-    for _, row in frame.iterrows():
+    for _, row in frame.sort_values("trade_date").iterrows():
         rows.append(
             {
                 "trade_date": normalize_date(row.get("trade_date")),
@@ -131,9 +229,42 @@ def fetch_bars(ts_code, asset_type, freq, start_date=None, end_date=None):
     return rows
 
 
+def _matching_row(frame, ts_code):
+    if frame is None or frame.empty or "ts_code" not in frame.columns:
+        return None
+    match = frame[frame["ts_code"] == ts_code]
+    return None if match.empty else match.iloc[0].to_dict()
+
+
+def _fallback_basic(ts_code, market=None):
+    return {
+        "ts_code": ts_code,
+        "name": ts_code,
+        "market": market,
+        "industry": None,
+        "area": None,
+        "list_date": None,
+    }
+
+
 def _number(value):
     if value is None:
         return None
     if isinstance(value, float) and math.isnan(value):
         return None
     return float(value)
+
+
+_BASIC_INFO_FETCHERS = {
+    "stock": _fetch_stock_basic,
+    "etf": _fetch_etf_basic,
+    "index": _fetch_index_basic,
+    "fund": _fetch_fund_basic,
+}
+
+_BAR_FRAME_FETCHERS = {
+    "stock": _fetch_stock_bars,
+    "etf": _fetch_etf_bars,
+    "index": _fetch_index_bars,
+    "fund": _fetch_fund_bars,
+}

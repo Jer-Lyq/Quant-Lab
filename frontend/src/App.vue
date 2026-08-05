@@ -90,10 +90,11 @@
                 </div>
               </div>
               <div class="admin-grid">
-                <el-input v-model="newInstrument.ts_code" placeholder="例如 000001.SZ" />
+                <el-input v-model="newInstrument.ts_code" placeholder="例如 000001.SZ / 000300.SH" />
                 <el-select v-model="newInstrument.asset_type">
                   <el-option label="股票" value="stock" />
                   <el-option label="ETF" value="etf" />
+                  <el-option label="指数" value="index" />
                   <el-option label="基金" value="fund" />
                 </el-select>
                 <el-date-picker v-model="newInstrument.data_start" type="date" value-format="YYYY-MM-DD" placeholder="开始日期" />
@@ -594,25 +595,69 @@ function renderChart() {
   }
 
   const legend = series.map((item) => item.name)
-  const yAxis = [{ scale: true, splitLine: { lineStyle: { color: '#eef1ec' } } }]
-  const xAxis = [{ type: 'category', data: dates, scale: true, boundaryGap: false, axisLine: { lineStyle: { color: '#cbd6ce' } } }]
-  const grid = [{ left: 70, right: 24, top: 44, height: 292 }]
-
-  grid.push({ left: 70, right: 24, top: 372, height: subChart.value === 'volume' ? 104 : 72 })
-  xAxis.push({ type: 'category', data: dates, gridIndex: 1, scale: true, boundaryGap: false, axisLabel: { show: subChart.value === 'volume' } })
-  yAxis.push({
-    gridIndex: 1,
+  const dateAxisLabel = {
+    color: '#66746b',
+    fontSize: 11,
+    margin: 10,
+    hideOverlap: true,
+    showMinLabel: true,
+    showMaxLabel: true,
+    alignMinLabel: 'left',
+    alignMaxLabel: 'right'
+  }
+  const createDateAxis = (gridIndex, showLabels) => ({
+    type: 'category',
+    data: dates,
+    gridIndex,
     scale: true,
-    axisLabel: { formatter: compactAxisNumber, margin: 8 },
+    boundaryGap: true,
+    axisLine: { lineStyle: { color: '#cbd6ce' } },
+    axisTick: { show: showLabels, alignWithLabel: true },
+    axisLabel: { ...dateAxisLabel, show: showLabels }
+  })
+  const createYAxis = (gridIndex, formatter) => ({
+    gridIndex,
+    scale: true,
+    axisLine: { show: false },
+    axisTick: { show: false },
+    axisLabel: {
+      color: '#66746b',
+      fontSize: 11,
+      margin: 12,
+      ...(formatter ? { formatter } : {})
+    },
+    axisPointer: { label: { show: false } },
     splitLine: { lineStyle: { color: '#eef1ec' } }
   })
+  const chartHeight = chartRef.value.clientHeight || 680
+  const sliderHeight = 36
+  const sliderBottom = 8
+  const lowerPlotBottom = chartHeight - sliderHeight - sliderBottom - 30
+  const priceTop = 52
+  const availablePlotHeight = Math.max(400, lowerPlotBottom - priceTop)
+  const hasIndicatorSubChart = subChart.value !== 'volume'
+  const priceHeight = Math.round(availablePlotHeight * (hasIndicatorSubChart ? 0.56 : 0.68))
+  const volumeTop = priceTop + priceHeight + 24
+  const remainingLowerHeight = lowerPlotBottom - volumeTop
+  const volumeHeight = hasIndicatorSubChart
+    ? Math.max(70, Math.round((remainingLowerHeight - 20) * 0.42))
+    : Math.max(112, remainingLowerHeight)
+  const gridBase = { left: 10, right: 24, containLabel: true }
+  const yAxis = [createYAxis(0)]
+  const xAxis = [createDateAxis(0, false)]
+  const grid = [{ ...gridBase, top: priceTop, height: priceHeight }]
+
+  grid.push({ ...gridBase, top: volumeTop, height: volumeHeight })
+  xAxis.push(createDateAxis(1, subChart.value === 'volume'))
+  yAxis.push(createYAxis(1, compactAxisNumber))
   series.push({ name: '成交量', type: 'bar', data: volume, xAxisIndex: 1, yAxisIndex: 1, itemStyle: { color: '#b7c5bd' } })
   legend.push('成交量')
 
   if (subChart.value !== 'volume') {
-    grid.push({ left: 70, right: 24, top: 478, height: 96 })
-    xAxis.push({ type: 'category', data: dates, gridIndex: 2, scale: true, boundaryGap: false })
-    yAxis.push({ gridIndex: 2, scale: true, splitLine: { lineStyle: { color: '#eef1ec' } } })
+    const subChartTop = volumeTop + volumeHeight + 20
+    grid.push({ ...gridBase, top: subChartTop, height: Math.max(72, lowerPlotBottom - subChartTop) })
+    xAxis.push(createDateAxis(2, true))
+    yAxis.push(createYAxis(2))
     if (subChart.value === 'rsi') {
       series.push({ ...lineSeries('RSI14', indicators.value?.rsi14 || [], '#a35f2d'), xAxisIndex: 2, yAxisIndex: 2 })
       legend.push('RSI14')
@@ -629,12 +674,61 @@ function renderChart() {
   chart.setOption({
     animation: false,
     backgroundColor: '#ffffff',
-    tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+    tooltip: { trigger: 'axis', confine: true, axisPointer: { type: 'cross' } },
     legend: { data: legend, top: 8, textStyle: { color: '#425047' } },
     grid,
     xAxis,
     yAxis,
-    dataZoom: [{ type: 'inside', xAxisIndex: xAxis.map((_, index) => index) }, { show: true, xAxisIndex: xAxis.map((_, index) => index), bottom: 8 }],
+    dataZoom: [
+      { type: 'inside', xAxisIndex: xAxis.map((_, index) => index) },
+      {
+        type: 'slider',
+        show: true,
+        xAxisIndex: xAxis.map((_, index) => index),
+        left: 88,
+        right: 88,
+        bottom: sliderBottom,
+        height: sliderHeight,
+        brushSelect: false,
+        showDetail: true,
+        showDataShadow: true,
+        handleLabel: { show: true },
+        labelFormatter: (_value, valueStr) => valueStr || '',
+        backgroundColor: '#f4f7f5',
+        borderColor: '#d6dfd7',
+        borderRadius: 4,
+        fillerColor: 'rgba(77, 126, 168, 0.16)',
+        dataBackground: {
+          lineStyle: { color: '#9baba1', width: 1 },
+          areaStyle: { color: 'rgba(183, 197, 189, 0.2)' }
+        },
+        selectedDataBackground: {
+          lineStyle: { color: '#4d7ea8', width: 1.2 },
+          areaStyle: { color: 'rgba(77, 126, 168, 0.22)' }
+        },
+        handleSize: '112%',
+        handleStyle: {
+          color: '#ffffff',
+          borderColor: '#4d7ea8',
+          borderWidth: 2,
+          shadowBlur: 4,
+          shadowColor: 'rgba(36, 61, 48, 0.14)'
+        },
+        textStyle: {
+          color: '#425047',
+          fontSize: 11,
+          backgroundColor: '#ffffff',
+          borderColor: '#d6dfd7',
+          borderWidth: 1,
+          borderRadius: 4,
+          padding: [3, 6]
+        },
+        emphasis: {
+          handleLabel: { show: true },
+          handleStyle: { color: '#ffffff', borderColor: '#2f7d5b', borderWidth: 2 }
+        }
+      }
+    ],
     series
   }, true)
 }
@@ -657,7 +751,7 @@ function lineSeries(name, data, color, type = 'solid') {
 }
 
 function typeLabel(type) {
-  return { stock: '股票', etf: 'ETF', fund: '基金' }[type] || type
+  return { stock: '股票', etf: 'ETF', index: '指数', fund: '基金' }[type] || type
 }
 
 function formatNumber(value, digits = 2) {

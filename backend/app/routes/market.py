@@ -4,6 +4,7 @@ from ..auth import require_auth
 from ..db import get_db
 from ..engine.market_engine import build_indicators, build_market_snapshot
 from ..services.dataset_store import read_ohlcv_bars
+from ..services.tushare_service import SUPPORTED_ASSET_TYPES
 
 market_bp = Blueprint("market", __name__)
 
@@ -78,7 +79,7 @@ def research_request():
     asset_type = payload.get("asset_type") or "stock"
     if not ts_code:
         return jsonify({"error": "ts_code_required"}), 400
-    if asset_type not in {"stock", "etf", "fund"}:
+    if asset_type not in SUPPORTED_ASSET_TYPES:
         return jsonify({"error": "invalid_asset_type"}), 400
     cursor = get_db().execute(
         """

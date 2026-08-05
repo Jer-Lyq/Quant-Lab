@@ -26,9 +26,78 @@ def init_db():
     db = sqlite3.connect(db_path)
     try:
         db.executescript(SCHEMA)
+        _migrate_asset_type_constraints(db)
         db.commit()
     finally:
         db.close()
+
+
+def _migrate_asset_type_constraints(db):
+    table_sql = {
+        row[0]: row[1] or ""
+        for row in db.execute(
+            "SELECT name, sql FROM sqlite_master WHERE type='table' AND name IN ('instruments', 'research_requests')"
+        )
+    }
+    if all("'index'" in table_sql.get(name, "") for name in ("instruments", "research_requests")):
+        return
+
+    db.executescript(
+        """
+        PRAGMA foreign_keys = OFF;
+        BEGIN;
+
+        DROP TABLE IF EXISTS instruments_asset_type_v2;
+        CREATE TABLE instruments_asset_type_v2 (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts_code TEXT NOT NULL UNIQUE,
+            name TEXT NOT NULL,
+            asset_type TEXT NOT NULL CHECK (asset_type IN ('stock', 'etf', 'index', 'fund')),
+            market TEXT,
+            industry TEXT,
+            area TEXT,
+            list_date TEXT,
+            data_start TEXT,
+            data_end TEXT,
+            status TEXT NOT NULL DEFAULT 'draft',
+            is_published INTEGER NOT NULL DEFAULT 0,
+            last_synced_at TEXT,
+            notes TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        INSERT INTO instruments_asset_type_v2
+        SELECT id, ts_code, name, asset_type, market, industry, area, list_date,
+               data_start, data_end, status, is_published, last_synced_at, notes,
+               created_at, updated_at
+        FROM instruments;
+
+        DROP TABLE IF EXISTS research_requests_asset_type_v2;
+        CREATE TABLE research_requests_asset_type_v2 (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            ts_code TEXT NOT NULL,
+            asset_type TEXT NOT NULL CHECK (asset_type IN ('stock', 'etf', 'index', 'fund')),
+            reason TEXT,
+            status TEXT NOT NULL DEFAULT 'pending',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        INSERT INTO research_requests_asset_type_v2
+        SELECT id, user_id, ts_code, asset_type, reason, status, created_at
+        FROM research_requests;
+
+        DROP TABLE research_requests;
+        DROP TABLE instruments;
+        ALTER TABLE instruments_asset_type_v2 RENAME TO instruments;
+        ALTER TABLE research_requests_asset_type_v2 RENAME TO research_requests;
+
+        COMMIT;
+        PRAGMA foreign_keys = ON;
+        """
+    )
+    violations = db.execute("PRAGMA foreign_key_check").fetchall()
+    if violations:
+        raise RuntimeError(f"Foreign key check failed after asset type migration: {violations}")
 
 
 SCHEMA = """
@@ -51,7 +120,7 @@ CREATE TABLE IF NOT EXISTS instruments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ts_code TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
-    asset_type TEXT NOT NULL CHECK (asset_type IN ('stock', 'etf', 'fund')),
+    asset_type TEXT NOT NULL CHECK (asset_type IN ('stock', 'etf', 'index', 'fund')),
     market TEXT,
     industry TEXT,
     area TEXT,
@@ -101,7 +170,7 @@ CREATE TABLE IF NOT EXISTS research_requests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
     ts_code TEXT NOT NULL,
-    asset_type TEXT NOT NULL CHECK (asset_type IN ('stock', 'etf', 'fund')),
+    asset_type TEXT NOT NULL CHECK (asset_type IN ('stock', 'etf', 'index', 'fund')),
     reason TEXT,
     status TEXT NOT NULL DEFAULT 'pending',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP

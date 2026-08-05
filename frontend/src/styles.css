@@ -596,7 +596,7 @@ p {
 }
 
 .chart {
-  height: 620px;
+  height: 680px;
   padding: 4px 2px 0;
 }
 
@@ -776,6 +776,14 @@ p {
 }
 
 @media (max-width: 1320px) {
+  .layout {
+    grid-template-columns: minmax(236px, 252px) minmax(0, 1fr);
+  }
+
+  .content {
+    padding: 18px;
+  }
+
   .overview-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -835,7 +843,7 @@ p {
   }
 
   .chart {
-    height: 560px;
+    height: 640px;
   }
 }
 
@@ -864,6 +872,10 @@ p {
 
   .detail-head h2 {
     font-size: 24px;
+  }
+
+  .chart {
+    height: 560px;
   }
 
   .login-panel h1 {

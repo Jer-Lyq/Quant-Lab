@@ -12,7 +12,7 @@ from ..services.settings_service import (
     set_setting,
 )
 from ..services.dataset_store import delete_instrument_data, replace_ohlcv_bars
-from ..services.tushare_service import fetch_bars, fetch_basic_info
+from ..services.tushare_service import SUPPORTED_ASSET_TYPES, fetch_bars, fetch_basic_info
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -61,7 +61,7 @@ def create_instrument():
     asset_type = payload.get("asset_type") or "stock"
     if not ts_code:
         return jsonify({"error": "ts_code_required"}), 400
-    if asset_type not in {"stock", "etf", "fund"}:
+    if asset_type not in SUPPORTED_ASSET_TYPES:
         return jsonify({"error": "invalid_asset_type"}), 400
 
     info = fetch_basic_info(ts_code, asset_type)
