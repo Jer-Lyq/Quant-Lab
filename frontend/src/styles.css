@@ -1,0 +1,263 @@
+:root {
+  color: #172026;
+  background: #f4f6f3;
+  font-family: Inter, "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.login-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: linear-gradient(135deg, #eef4f1 0%, #f7f2e8 50%, #edf1f7 100%);
+}
+
+.login-panel {
+  width: min(420px, 100%);
+  display: grid;
+  gap: 24px;
+  padding: 32px;
+  background: #ffffff;
+  border: 1px solid #d8dfda;
+  border-radius: 8px;
+  box-shadow: 0 24px 80px rgba(31, 49, 43, 0.12);
+}
+
+.login-panel h1,
+.topbar h1,
+.content h2,
+.sidebar h2 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: #3f6f5b;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.subtle {
+  color: #697670;
+  margin: 6px 0 0;
+}
+
+.wide-button {
+  width: 100%;
+}
+
+.workspace {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 28px;
+  background: #ffffff;
+  border-bottom: 1px solid #dfe5e1;
+}
+
+.topbar-actions,
+.detail-actions,
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-pill {
+  padding: 7px 10px;
+  background: #edf4ef;
+  border: 1px solid #d5e4da;
+  border-radius: 999px;
+  color: #2f5848;
+  font-size: 13px;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  min-height: 0;
+}
+
+.sidebar {
+  padding: 20px;
+  background: #fbfcfa;
+  border-right: 1px solid #dfe5e1;
+  overflow: auto;
+}
+
+.sidebar-head {
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.instrument-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.instrument-item {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  text-align: left;
+  background: #ffffff;
+  border: 1px solid #dde5df;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.instrument-item.active {
+  border-color: #2f7d5b;
+  box-shadow: inset 3px 0 0 #2f7d5b;
+}
+
+.instrument-item strong,
+.instrument-item small {
+  display: block;
+}
+
+.instrument-item small,
+.instrument-item em {
+  color: #748079;
+  font-style: normal;
+  font-size: 12px;
+}
+
+.content {
+  padding: 24px;
+  overflow: auto;
+}
+
+.admin-panel {
+  margin-bottom: 20px;
+  padding: 18px;
+  background: #fff;
+  border: 1px solid #dde5df;
+  border-radius: 8px;
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) 140px 170px 170px auto;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.instrument-detail {
+  display: grid;
+  gap: 18px;
+}
+
+.detail-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.stat-box {
+  padding: 14px;
+  background: #ffffff;
+  border: 1px solid #dde5df;
+  border-radius: 8px;
+}
+
+.stat-box span,
+.stat-box strong {
+  display: block;
+}
+
+.stat-box span {
+  color: #697670;
+  font-size: 13px;
+}
+
+.stat-box strong {
+  margin-top: 6px;
+  font-size: 18px;
+}
+
+.chart,
+.table-wrap {
+  background: #ffffff;
+  border: 1px solid #dde5df;
+  border-radius: 8px;
+}
+
+.chart {
+  height: 520px;
+  padding: 8px;
+}
+
+.table-wrap {
+  overflow: hidden;
+}
+
+.empty-state {
+  min-height: 420px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  color: #66736d;
+  border: 1px dashed #bdc8c1;
+  border-radius: 8px;
+}
+
+@media (max-width: 980px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    border-right: 0;
+    border-bottom: 1px solid #dfe5e1;
+  }
+
+  .admin-grid,
+  .stats-row {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-head,
+  .topbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+

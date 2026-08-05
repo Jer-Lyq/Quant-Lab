@@ -1,0 +1,10 @@
+.env
+data/
+logs/
+backups/
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.venv/
+*.docx
