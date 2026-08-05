@@ -91,6 +91,12 @@ CREATE TABLE IF NOT EXISTS sync_logs (
     finished_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS app_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS research_requests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -104,4 +110,3 @@ CREATE TABLE IF NOT EXISTS research_requests (
 CREATE INDEX IF NOT EXISTS idx_price_bars_lookup
 ON price_bars(instrument_id, freq, trade_date);
 """
-

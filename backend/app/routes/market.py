@@ -2,7 +2,7 @@ from flask import Blueprint, g, jsonify, request
 
 from ..auth import require_auth
 from ..db import get_db
-from ..services.indicator_service import build_indicators
+from ..engine.market_engine import build_indicators, build_market_snapshot
 
 market_bp = Blueprint("market", __name__)
 
@@ -59,6 +59,16 @@ def indicators(instrument_id):
     return jsonify({"indicators": build_indicators(rows)})
 
 
+@market_bp.get("/instruments/<int:instrument_id>/analytics")
+@require_auth
+def analytics(instrument_id):
+    freq = request.args.get("freq", "daily")
+    if freq not in {"daily", "weekly"}:
+        return jsonify({"error": "invalid_freq"}), 400
+    rows = [dict(row) for row in _bars_for(instrument_id, freq)]
+    return jsonify(build_market_snapshot(rows))
+
+
 @market_bp.post("/research-requests")
 @require_auth
 def research_request():
@@ -96,4 +106,3 @@ def _bars_for(instrument_id, freq):
         """,
         (instrument_id, freq),
     ).fetchall()
-

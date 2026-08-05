@@ -5,9 +5,36 @@ from flask import Blueprint, jsonify, request
 from ..auth import require_admin
 from ..db import get_db
 from ..services.auth_service import create_user
+from ..services.settings_service import (
+    TUSHARE_HTTP_URL_KEY,
+    TUSHARE_TOKEN_KEY,
+    get_tushare_connection_meta,
+    set_setting,
+)
 from ..services.tushare_service import fetch_bars, fetch_basic_info
 
 admin_bp = Blueprint("admin", __name__)
+
+
+@admin_bp.get("/data-source")
+@require_admin
+def data_source():
+    return jsonify({"provider": "tushare", "connection": get_tushare_connection_meta()})
+
+
+@admin_bp.patch("/data-source")
+@require_admin
+def update_data_source():
+    payload = request.get_json(silent=True) or {}
+    token = (payload.get("tushare_token") or payload.get("token") or "").strip()
+    http_url = (payload.get("tushare_http_url") or payload.get("http_url") or "").strip()
+    if not token and not http_url:
+        return jsonify({"error": "tushare_token_or_http_url_required"}), 400
+    if token:
+        set_setting(TUSHARE_TOKEN_KEY, token)
+    if http_url:
+        set_setting(TUSHARE_HTTP_URL_KEY, http_url)
+    return jsonify({"provider": "tushare", "connection": get_tushare_connection_meta()})
 
 
 @admin_bp.post("/users")
@@ -76,6 +103,7 @@ def create_instrument():
 @admin_bp.post("/instruments/<int:instrument_id>/sync")
 @require_admin
 def sync_instrument(instrument_id):
+    payload = request.get_json(silent=True) or {}
     db = get_db()
     instrument = db.execute("SELECT * FROM instruments WHERE id = ?", (instrument_id,)).fetchone()
     if not instrument:
@@ -89,6 +117,8 @@ def sync_instrument(instrument_id):
     log_id = started_log.lastrowid
 
     try:
+        requested_end_date = (payload.get("end_date") or payload.get("data_end") or "").strip()
+        effective_end_date = requested_end_date or datetime.now(timezone.utc).strftime("%Y%m%d")
         total_rows = 0
         for freq in ("daily", "weekly"):
             rows = fetch_bars(
@@ -96,7 +126,7 @@ def sync_instrument(instrument_id):
                 instrument["asset_type"],
                 freq,
                 instrument["data_start"],
-                instrument["data_end"],
+                effective_end_date,
             )
             for row in rows:
                 db.execute(

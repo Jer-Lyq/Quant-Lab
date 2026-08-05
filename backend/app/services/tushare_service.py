@@ -2,18 +2,24 @@ from datetime import datetime
 import math
 
 import tushare as ts
-from flask import current_app
+
+from .settings_service import get_tushare_http_url, get_tushare_token
 
 
 def _token():
-    token = current_app.config["TUSHARE_TOKEN"]
+    token = get_tushare_token()
     if not token:
         raise RuntimeError("TUSHARE_TOKEN is not configured.")
     return token
 
 
 def pro_api():
-    return ts.pro_api(_token())
+    token = _token()
+    http_url = get_tushare_http_url()
+    pro = ts.pro_api(token)
+    pro._DataApi__token = token
+    pro._DataApi__http_url = http_url
+    return pro
 
 
 def normalize_date(value):

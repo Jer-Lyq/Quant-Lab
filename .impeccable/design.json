@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-05T12:00:00+08:00",
+  "title": "Design System: Quant Lab",
+  "extensions": {
+    "colorMeta": {
+      "accent": {
+        "role": "primary",
+        "displayName": "Desk Green",
+        "canonical": "#2f7d5b",
+        "tonalRamp": ["#10291c", "#183d2b", "#235d43", "#2f7d5b", "#54a67c", "#8fc9aa", "#dbeae0", "#f0f7f2"]
+      },
+      "rail": {
+        "role": "neutral",
+        "displayName": "Research Rail",
+        "canonical": "#13231b",
+        "tonalRamp": ["#09110d", "#102018", "#13231b", "#24382e", "#52695d", "#91a196", "#c9d4cc", "#edf3ef"]
+      },
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Canvas Mist",
+        "canonical": "#eef2ec",
+        "tonalRamp": ["#202820", "#435044", "#69766b", "#98a599", "#c5d0c8", "#e4ebe4", "#eef2ec", "#f8faf7"]
+      }
+    },
+    "shadows": [
+      {
+        "name": "surface-low",
+        "value": "0 16px 40px rgba(17, 27, 22, 0.08)",
+        "purpose": "Separate command panels, stat boxes, charts, and tables from the canvas."
+      },
+      {
+        "name": "surface-raised",
+        "value": "0 22px 56px rgba(17, 27, 22, 0.12)",
+        "purpose": "Login panel and higher-emphasis surfaces."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state-quick",
+        "value": "150ms ease",
+        "purpose": "Small hover and selection transitions in the rail."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "desktop-wrap",
+        "value": "1240px"
+      },
+      {
+        "name": "single-column",
+        "value": "980px"
+      },
+      {
+        "name": "compact",
+        "value": "640px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Green action button for sync and create commands.",
+      "html": "<button class=\"ds-btn-primary\">新增并同步</button>",
+      "css": ".ds-btn-primary { min-width: 150px; padding: 0 18px; height: 32px; border: 0; border-radius: 8px; background: #2f7d5b; color: #ffffff; font: 600 14px/1 Inter, Microsoft YaHei, PingFang SC, system-ui, sans-serif; } .ds-btn-primary:hover { background: #235d43; } .ds-btn-primary:focus-visible { outline: 3px solid #dbeae0; outline-offset: 2px; }"
+    },
+    {
+      "name": "Rail Instrument Item",
+      "kind": "nav",
+      "description": "Dark translucent navigation row for an instrument in the research rail.",
+      "html": "<button class=\"ds-rail-item\"><span><strong>平安银行</strong><small>000001.SZ · 股票</small></span><em>ready</em></button>",
+      "css": ".ds-rail-item { width: 100%; display: flex; justify-content: space-between; gap: 12px; padding: 14px 13px; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; background: rgba(255,255,255,0.04); color: #eef5f0; text-align: left; font: 14px/1.3 Inter, Microsoft YaHei, PingFang SC, system-ui, sans-serif; } .ds-rail-item strong, .ds-rail-item small { display: block; } .ds-rail-item small, .ds-rail-item em { color: rgba(236,244,239,0.68); font-size: 12px; font-style: normal; }"
+    },
+    {
+      "name": "Stat Box",
+      "kind": "card",
+      "description": "Compact metric container used for selected-instrument metadata.",
+      "html": "<div class=\"ds-stat\"><span>行业</span><strong>银行</strong></div>",
+      "css": ".ds-stat { min-height: 92px; padding: 15px; border: 1px solid #d6dfd7; border-radius: 8px; background: #ffffff; box-shadow: 0 16px 40px rgba(17,27,22,0.08); color: #132018; font-family: Inter, Microsoft YaHei, PingFang SC, system-ui, sans-serif; } .ds-stat span { display: block; color: #66746b; font-size: 13px; } .ds-stat strong { display: block; margin-top: 6px; font-size: 18px; line-height: 1.1; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Institutional Research Desk",
+    "overview": "Quant Lab uses a restrained workbench system: a dark instrument rail, a pale research canvas, crisp green action states, compact panels, and tabular numerals.",
+    "keyCharacteristics": [
+      "Dark persistent navigation for instrument context.",
+      "Pale canvas and white inspection panels for charts, tables, and metadata.",
+      "Green accent reserved for selected state and primary actions.",
+      "Dense but readable spacing tuned for repeated research workflows."
+    ],
+    "rules": [
+      {
+        "name": "The Rare Accent Rule",
+        "body": "Green is used for state and action, not general decoration.",
+        "section": "colors"
+      }
+    ],
+    "dos": [
+      "Do keep the admin command strip compact and aligned.",
+      "Do preserve clear separation between browsing, syncing, and inspecting.",
+      "Do keep chart and table surfaces calm so data remains primary."
+    ],
+    "donts": [
+      "Don't use decorative gradients, oversized marketing sections, or large hero compositions in the authenticated workspace.",
+      "Don't scatter accent green across inactive UI.",
+      "Don't allow control rows to overflow horizontally at ordinary desktop widths."
+    ]
+  }
+}
