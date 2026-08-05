@@ -1,15 +1,23 @@
 # Quant Lab 量化研究实验工作台
 
-Personal quant research platform.
+Multi-user internal quant research platform.
 
-首版实现数据中心模块：管理员录入股票、ETF 或基金代码，后端通过 Tushare 同步日线和周线数据，普通用户登录后查看标的档案、K线、成交量和技术指标。
+首版实现数据中心模块：管理员录入股票、ETF、指数或基金代码，后端通过 Tushare 同步日线和周线数据，普通用户登录后查看标的档案、K线、成交量和技术指标。后续研究、策略、回测和报告模块会在流程确认后逐步接入。
 
 ## 技术栈
 
 - Frontend: Vue3, Element Plus, ECharts
 - Backend: Flask, Gunicorn, SQLite
-- Data: Tushare
+- Data: Tushare first, provider interface reserved for later sources
 - Deploy: Docker Compose, Nginx
+
+## 工程结构
+
+- `frontend/src/app/`：应用壳层、登录、认证状态、API 客户端。
+- `frontend/src/modules/data-center/`：数据中心模块。
+- `backend/app/services/data_providers/`：行情数据源 provider 注册口，当前只启用 Tushare。
+- `docs/BUILD_NOTES.md`：搭建期间遇到的问题和处理记录。
+- `docs/ENGINEERING_PLAN.md`：后续搭建阶段和研究模块边界。
 
 ## 本地/服务器启动
 
@@ -83,4 +91,3 @@ APP_DIR=/opt/quant-lab/app sh scripts/backup.sh
 ```
 
 脚本会备份 SQLite 数据库，并保留最近 7 天。
-

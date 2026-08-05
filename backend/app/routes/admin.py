@@ -5,6 +5,7 @@ from flask import Blueprint, jsonify, request
 from ..auth import require_admin
 from ..db import get_db
 from ..services.auth_service import create_user
+from ..services.data_providers import get_market_data_provider
 from ..services.settings_service import (
     TUSHARE_HTTP_URL_KEY,
     TUSHARE_TOKEN_KEY,
@@ -12,7 +13,6 @@ from ..services.settings_service import (
     set_setting,
 )
 from ..services.dataset_store import delete_instrument_data, replace_ohlcv_bars
-from ..services.tushare_service import SUPPORTED_ASSET_TYPES, fetch_bars, fetch_basic_info
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -57,14 +57,15 @@ def create_normal_user():
 @require_admin
 def create_instrument():
     payload = request.get_json(silent=True) or {}
+    provider = get_market_data_provider("tushare")
     ts_code = (payload.get("ts_code") or "").upper().strip()
     asset_type = payload.get("asset_type") or "stock"
     if not ts_code:
         return jsonify({"error": "ts_code_required"}), 400
-    if asset_type not in SUPPORTED_ASSET_TYPES:
+    if asset_type not in provider.supported_asset_types:
         return jsonify({"error": "invalid_asset_type"}), 400
 
-    info = fetch_basic_info(ts_code, asset_type)
+    info = provider.fetch_basic_info(ts_code, asset_type)
     db = get_db()
     db.execute(
         """
@@ -105,6 +106,7 @@ def create_instrument():
 @require_admin
 def sync_instrument(instrument_id):
     payload = request.get_json(silent=True) or {}
+    provider = get_market_data_provider("tushare")
     db = get_db()
     instrument = db.execute("SELECT * FROM instruments WHERE id = ?", (instrument_id,)).fetchone()
     if not instrument:
@@ -122,7 +124,7 @@ def sync_instrument(instrument_id):
         effective_end_date = requested_end_date or datetime.now(timezone.utc).strftime("%Y%m%d")
         rows_by_freq = {}
         for freq in ("daily", "weekly"):
-            rows_by_freq[freq] = fetch_bars(
+            rows_by_freq[freq] = provider.fetch_bars(
                 instrument["ts_code"],
                 instrument["asset_type"],
                 freq,
