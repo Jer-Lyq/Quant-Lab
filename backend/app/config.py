@@ -8,7 +8,8 @@ load_dotenv()
 
 class Config:
     BASE_DIR = Path(__file__).resolve().parents[1]
-    DATA_DIR = Path(os.getenv("DATA_DIR", BASE_DIR / "data"))
+    PROJECT_DIR = BASE_DIR.parent
+    DATA_DIR = Path(os.getenv("DATA_DIR", PROJECT_DIR / "data"))
     DATABASE_PATH = os.getenv("DATABASE_PATH", str(DATA_DIR / "quant_lab.sqlite3"))
     INSTRUMENT_DATA_DIR = os.getenv("INSTRUMENT_DATA_DIR", str(DATA_DIR / "instruments"))
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-change-me")
