@@ -3,7 +3,6 @@
     <div class="panel-title-row">
       <div>
         <h3>策略因子</h3>
-        <p class="subtle">仅展示当前计算值和历史分位，不给出结论。</p>
       </div>
     </div>
     <div class="factor-groups">

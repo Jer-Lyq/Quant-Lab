@@ -10,9 +10,17 @@ export async function apiRequest(path, options = {}) {
       ...headers
     }
   })
-  const data = await response.json().catch(() => ({}))
+  const raw = await response.text()
+  let data = {}
+  if (raw) {
+    try {
+      data = JSON.parse(raw)
+    } catch {
+      data = { message: raw }
+    }
+  }
   if (!response.ok) {
-    throw new Error(data.message || data.error || '请求失败')
+    throw new Error(data.message || data.error || `请求失败 (${response.status})`)
   }
   return data
 }

@@ -51,7 +51,6 @@
         </div>
 
         <div class="data-grid">
-          <InstrumentMeta :instrument="selected" :bar-count="bars.length" />
           <RecentBarsTable :bars="recentBars" />
         </div>
       </div>
@@ -68,7 +67,6 @@ import AdminInstrumentPanel from './components/AdminInstrumentPanel.vue'
 import EmptyDataState from './components/EmptyDataState.vue'
 import FactorPanel from './components/FactorPanel.vue'
 import InstrumentHeader from './components/InstrumentHeader.vue'
-import InstrumentMeta from './components/InstrumentMeta.vue'
 import InstrumentSidebar from './components/InstrumentSidebar.vue'
 import MarketChart from './components/MarketChart.vue'
 import OverviewStats from './components/OverviewStats.vue'

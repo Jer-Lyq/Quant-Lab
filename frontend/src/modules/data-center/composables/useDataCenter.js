@@ -5,7 +5,8 @@ import {
   createDefaultAnalytics,
   createDefaultDataSource,
   createDefaultDataSourceForm,
-  createDefaultInstrumentForm
+  createDefaultInstrumentForm,
+  inferAssetType
 } from '../utils/labels'
 import { formatNumber, formatPct, formatUnit } from '../utils/formatters'
 
@@ -164,9 +165,14 @@ export function useDataCenter(tokenRef, userRef) {
   async function createAndSync() {
     loading.value = true
     try {
+      const payload = {
+        ...newInstrument.value
+      }
+      const assetType = inferAssetType(newInstrument.value.ts_code)
+      if (assetType !== 'unknown') payload.asset_type = assetType
       const data = await request('/admin/instruments', {
         method: 'POST',
-        body: JSON.stringify(newInstrument.value)
+        body: JSON.stringify(payload)
       })
       selected.value = data.instrument
       await request(`/admin/instruments/${data.instrument.id}/sync`, {

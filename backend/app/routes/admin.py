@@ -6,6 +6,7 @@ from ..auth import require_admin
 from ..db import get_db
 from ..services.auth_service import create_user
 from ..services.data_providers import get_market_data_provider
+from ..services.tushare_service import infer_asset_type
 from ..services.settings_service import (
     TUSHARE_HTTP_URL_KEY,
     TUSHARE_TOKEN_KEY,
@@ -59,7 +60,7 @@ def create_instrument():
     payload = request.get_json(silent=True) or {}
     provider = get_market_data_provider("tushare")
     ts_code = (payload.get("ts_code") or "").upper().strip()
-    asset_type = payload.get("asset_type") or "stock"
+    asset_type = payload.get("asset_type") or infer_asset_type(ts_code)
     if not ts_code:
         return jsonify({"error": "ts_code_required"}), 400
     if asset_type not in provider.supported_asset_types:

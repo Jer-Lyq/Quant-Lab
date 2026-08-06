@@ -70,6 +70,32 @@ def normalize_date(value):
     return text
 
 
+def infer_asset_type(ts_code):
+    text = (ts_code or "").upper().strip()
+    parts = text.split(".")
+    code = parts[0]
+    exchange = parts[1] if len(parts) > 1 else ""
+    if not (len(code) == 6 and code.isdigit()):
+        return None
+    if exchange == "BJ":
+        return "stock"
+    if exchange == "SH":
+        if code.startswith(("600", "601", "603", "605", "688", "689")):
+            return "stock"
+        if code.startswith(("510", "511", "512", "513", "515", "516", "517", "518", "520", "560", "561", "562", "563", "588", "589")):
+            return "etf"
+        if code.startswith(("000", "880", "881", "882", "883", "884", "885", "886", "887", "888")):
+            return "index"
+    if exchange == "SZ":
+        if code.startswith(("000", "001", "002", "003", "300", "301")):
+            return "stock"
+        if code.startswith(("150", "159", "160", "161", "162", "163", "164", "165", "166", "167", "168", "169", "184")):
+            return "etf"
+        if code.startswith(("399", "980", "981", "982", "983", "984", "985", "986", "987", "988")):
+            return "index"
+    return "stock"
+
+
 def fetch_basic_info(ts_code, asset_type):
     fetcher = _BASIC_INFO_FETCHERS.get(asset_type)
     if fetcher is None:

@@ -6,6 +6,7 @@ from .db import close_db, init_db
 from .routes.admin import admin_bp
 from .routes.auth import auth_bp
 from .routes.market import market_bp
+from .routes.strategies import strategies_bp
 
 
 def create_app():
@@ -21,6 +22,7 @@ def create_app():
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(admin_bp, url_prefix="/api/admin")
     app.register_blueprint(market_bp, url_prefix="/api")
+    app.register_blueprint(strategies_bp, url_prefix="/api")
 
     @app.get("/api/health")
     def health():
