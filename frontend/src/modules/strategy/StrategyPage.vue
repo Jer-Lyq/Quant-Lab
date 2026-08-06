@@ -22,6 +22,7 @@
         :version-form="versionForm"
         :versions="versions"
         :can-edit="canEdit"
+        :status-options="editableStatusOptions"
         :saving="saving"
         @save-strategy="saveStrategy"
         @save-version="saveVersion"
@@ -57,15 +58,15 @@
 
     <el-dialog v-model="createDialogVisible" title="新建策略" width="520px">
       <div class="create-strategy-form">
-        <el-input v-model="createForm.name" placeholder="策略名称" />
+        <el-input v-model="createForm.name" maxlength="120" show-word-limit placeholder="策略名称" />
         <el-select v-model="createForm.strategy_type" placeholder="策略类型">
           <el-option v-for="item in strategyTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
         </el-select>
         <el-select v-model="createForm.freq" placeholder="周期">
           <el-option v-for="item in strategyFreqOptions" :key="item.value" :label="item.label" :value="item.value" />
         </el-select>
-        <el-input v-model="createForm.strategy_idea" type="textarea" :rows="4" placeholder="策略思想：它试图捕捉什么市场现象" />
-        <el-input v-model="createForm.description" type="textarea" :rows="4" placeholder="策略说明" />
+        <el-input v-model="createForm.strategy_idea" maxlength="8000" type="textarea" :rows="4" placeholder="策略思想：它试图捕捉什么市场现象" />
+        <el-input v-model="createForm.description" maxlength="4000" type="textarea" :rows="4" placeholder="策略说明" />
       </div>
       <template #footer>
         <el-button @click="createDialogVisible = false">取消</el-button>
@@ -82,7 +83,12 @@ import StrategyInstrumentStudio from './components/StrategyInstrumentStudio.vue'
 import StrategyList from './components/StrategyList.vue'
 import StrategyVersionStudio from './components/StrategyVersionStudio.vue'
 import { useStrategies } from './composables/useStrategies'
-import { strategyFreqOptions, strategyTypeOptions } from './utils/labels'
+import {
+  strategyFreqOptions,
+  strategyStatusOptions,
+  strategyTypeOptions,
+  userManagedStrategyStatusOptions
+} from './utils/labels'
 
 const props = defineProps({
   token: {
@@ -117,6 +123,7 @@ const {
   availableInstruments,
   loadStrategies,
   selectStrategy,
+  loadVersion,
   createStrategy,
   saveStrategy,
   saveVersion,
@@ -130,6 +137,15 @@ const {
 const selectedVersion = computed(() => {
   if (!versions.value.length) return null
   return versions.value.find((item) => item.id === selectedVersionId.value) || versions.value[0]
+})
+
+const editableStatusOptions = computed(() => {
+  if (props.user?.role === 'admin') return strategyStatusOptions
+  const current = strategyStatusOptions.find((item) => item.value === selected.value?.status)
+  if (!current || userManagedStrategyStatusOptions.some((item) => item.value === current.value)) {
+    return userManagedStrategyStatusOptions
+  }
+  return [...userManagedStrategyStatusOptions, current]
 })
 
 watch(
@@ -167,9 +183,10 @@ function openCreateDialog() {
   createDialogVisible.value = true
 }
 
-function selectVersion(version) {
+async function selectVersion(version) {
   if (!version) return
-  selectedVersionId.value = version.id
+  const loaded = await loadVersion(version)
+  if (loaded) selectedVersionId.value = loaded.id
 }
 
 async function handleSelectStrategy(item) {

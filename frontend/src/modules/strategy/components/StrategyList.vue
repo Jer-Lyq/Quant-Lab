@@ -104,6 +104,8 @@ defineEmits([
 ])
 
 function canDelete(item) {
-  return props.user?.role === 'admin' || item.author_id === props.user?.id
+  if (props.user?.role === 'admin') return true
+  if (['backtesting', 'validated'].includes(item.status)) return false
+  return item.author_id === props.user?.id
 }
 </script>

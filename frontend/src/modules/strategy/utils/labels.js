@@ -15,6 +15,10 @@ export const strategyStatusOptions = [
   { label: '废弃', value: 'discarded' }
 ]
 
+export const userManagedStrategyStatusOptions = strategyStatusOptions.filter((item) =>
+  ['draft', 'ready', 'discarded'].includes(item.value)
+)
+
 export const strategyFreqOptions = [
   { label: '日线', value: 'daily' },
   { label: '周线', value: 'weekly' }

@@ -1,5 +1,6 @@
-from flask import Flask
+from flask import Flask, request
 from flask_cors import CORS
+from werkzeug.exceptions import RequestEntityTooLarge
 
 from .config import Config
 from .db import close_db, init_db
@@ -23,6 +24,19 @@ def create_app():
     app.register_blueprint(admin_bp, url_prefix="/api/admin")
     app.register_blueprint(market_bp, url_prefix="/api")
     app.register_blueprint(strategies_bp, url_prefix="/api")
+
+    @app.errorhandler(RequestEntityTooLarge)
+    def request_too_large(_error):
+        return {"error": "request_too_large"}, 413
+
+    @app.after_request
+    def add_api_security_headers(response):
+        if request.path.startswith("/api/"):
+            response.headers.setdefault("Cache-Control", "no-store")
+            response.headers.setdefault("X-Content-Type-Options", "nosniff")
+            response.headers.setdefault("X-Frame-Options", "DENY")
+            response.headers.setdefault("Referrer-Policy", "no-referrer")
+        return response
 
     @app.get("/api/health")
     def health():

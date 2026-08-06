@@ -1,11 +1,13 @@
 import sqlite3
 
-from flask import Blueprint, g, jsonify, request
+from flask import Blueprint, current_app, g, jsonify, request
 
 from ..auth import require_auth
+from ..services.strategy_rules import StrategyError, require_object_payload
 from ..services.strategy_service import (
     DEFAULT_RQALPHA_CODE,
     add_strategy_instrument,
+    count_strategy_versions,
     create_strategy,
     create_strategy_version,
     delete_strategy,
@@ -24,17 +26,20 @@ strategies_bp = Blueprint("strategies", __name__)
 
 
 def _handle_error(exc):
-    if isinstance(exc, LookupError):
-        return jsonify({"error": str(exc)}), 404
-    if isinstance(exc, PermissionError):
-        return jsonify({"error": str(exc)}), 403
-    if isinstance(exc, ValueError):
-        return jsonify({"error": str(exc)}), 400
+    if isinstance(exc, StrategyError):
+        return jsonify({"error": exc.code}), exc.status_code
     if isinstance(exc, sqlite3.IntegrityError):
-        return jsonify({"error": "strategy_database_conflict", "message": str(exc)}), 409
+        current_app.logger.warning("Strategy database conflict", exc_info=True)
+        return jsonify({"error": "strategy_database_conflict"}), 409
     if isinstance(exc, sqlite3.OperationalError):
-        return jsonify({"error": "strategy_database_error", "message": str(exc)}), 500
-    return jsonify({"error": "strategy_operation_failed", "message": str(exc)}), 500
+        current_app.logger.exception("Strategy database operation failed")
+        return jsonify({"error": "strategy_database_error"}), 500
+    current_app.logger.exception("Unexpected strategy operation failure")
+    return jsonify({"error": "strategy_operation_failed"}), 500
+
+
+def _json_payload():
+    return require_object_payload(request.get_json(silent=True))
 
 
 @strategies_bp.get("/strategies")
@@ -47,7 +52,7 @@ def strategies():
 @require_auth
 def create_strategy_route():
     try:
-        strategy = create_strategy(request.get_json(silent=True) or {}, g.current_user)
+        strategy = create_strategy(_json_payload(), g.current_user)
         return jsonify({"strategy": strategy}), 201
     except Exception as exc:
         return _handle_error(exc)
@@ -59,10 +64,16 @@ def strategy_detail(strategy_id):
     strategy = get_strategy(strategy_id)
     if not strategy:
         return jsonify({"error": "strategy_not_found"}), 404
+    versions = list_strategy_versions(strategy_id)
+    latest_version = get_strategy_version(versions[0]["id"]) if versions else None
+    version_count = count_strategy_versions(strategy_id)
     return jsonify(
         {
             "strategy": strategy,
-            "versions": list_strategy_versions(strategy_id),
+            "versions": versions,
+            "latest_version": latest_version,
+            "version_count": version_count,
+            "has_more_versions": version_count > len(versions),
             "instruments": list_strategy_instruments(strategy_id),
             "recent_backtests": latest_backtests(strategy_id),
             "default_code": DEFAULT_RQALPHA_CODE,
@@ -74,7 +85,7 @@ def strategy_detail(strategy_id):
 @require_auth
 def update_strategy_route(strategy_id):
     try:
-        return jsonify({"strategy": update_strategy(strategy_id, request.get_json(silent=True) or {}, g.current_user)})
+        return jsonify({"strategy": update_strategy(strategy_id, _json_payload(), g.current_user)})
     except Exception as exc:
         return _handle_error(exc)
 
@@ -101,7 +112,7 @@ def strategy_versions(strategy_id):
 @require_auth
 def create_strategy_version_route(strategy_id):
     try:
-        version = create_strategy_version(strategy_id, request.get_json(silent=True) or {}, g.current_user)
+        version = create_strategy_version(strategy_id, _json_payload(), g.current_user)
         return jsonify({"version": version}), 201
     except Exception as exc:
         return _handle_error(exc)
@@ -129,9 +140,8 @@ def delete_strategy_version_route(strategy_id, version_id):
 @strategies_bp.post("/strategies/<int:strategy_id>/instruments")
 @require_auth
 def add_instrument(strategy_id):
-    payload = request.get_json(silent=True) or {}
     try:
-        instrument_id = int(payload.get("instrument_id") or 0)
+        instrument_id = _json_payload().get("instrument_id")
         instruments = add_strategy_instrument(strategy_id, instrument_id, g.current_user)
         return jsonify({"instruments": instruments})
     except Exception as exc:

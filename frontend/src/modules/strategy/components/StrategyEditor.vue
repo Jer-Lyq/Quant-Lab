@@ -11,10 +11,16 @@
             </div>
           </div>
           <div class="strategy-property-actions">
-            <el-button class="quick-backtest-action" @click="$emit('quick-backtest', strategy)">
-              <FlaskConical :size="16" />
-              快速回测
-            </el-button>
+            <el-tooltip content="快速回测" placement="bottom">
+              <el-button
+                class="quick-backtest-action icon-action-button"
+                aria-label="快速回测"
+                title="快速回测"
+                @click="$emit('quick-backtest', strategy)"
+              >
+                <FlaskConical :size="16" />
+              </el-button>
+            </el-tooltip>
             <el-tooltip content="历史回测" placement="bottom">
               <el-button
                 class="secondary-action icon-action-button"
@@ -44,7 +50,7 @@
         <div class="strategy-form-grid">
           <div class="field-block">
             <span class="field-label">策略名称</span>
-            <el-input v-model="editorForm.name" :disabled="!canEdit" placeholder="例如：双均线趋势策略" />
+            <el-input v-model="editorForm.name" :disabled="!canEdit" maxlength="120" show-word-limit placeholder="例如：双均线趋势策略" />
           </div>
           <div class="field-block">
             <span class="field-label">策略类型</span>
@@ -55,7 +61,7 @@
           <div class="field-block">
             <span class="field-label">状态</span>
             <el-select v-model="editorForm.status" :disabled="!canEdit" placeholder="选择状态">
-              <el-option v-for="item in strategyStatusOptions" :key="item.value" :label="item.label" :value="item.value" />
+              <el-option v-for="item in statusOptions" :key="item.value" :label="item.label" :value="item.value" />
             </el-select>
           </div>
           <div class="field-block">
@@ -66,7 +72,7 @@
           </div>
           <div class="field-block">
             <span class="field-label">市场</span>
-            <el-input v-model="editorForm.market" :disabled="!canEdit" placeholder="例如：A股 / ETF" />
+            <el-input v-model="editorForm.market" :disabled="!canEdit" maxlength="80" placeholder="例如：A股 / ETF" />
           </div>
         </div>
 
@@ -76,6 +82,7 @@
             <el-input
               v-model="editorForm.strategy_idea"
               :disabled="!canEdit"
+              maxlength="8000"
               type="textarea"
               :rows="5"
               placeholder="说明你为什么设计这个策略，它试图捕捉什么市场现象。"
@@ -86,6 +93,7 @@
             <el-input
               v-model="editorForm.description"
               :disabled="!canEdit"
+              maxlength="4000"
               type="textarea"
               :rows="5"
               placeholder="记录策略来源、核心逻辑和适用环境。"
@@ -96,6 +104,7 @@
             <el-input
               v-model="editorForm.uploader_notes"
               :disabled="!canEdit"
+              maxlength="4000"
               type="textarea"
               :rows="5"
               placeholder="记录改动、风险提示和待验证问题。"
@@ -127,17 +136,18 @@
         <div class="version-meta-grid">
           <div class="field-block compact-field">
             <span class="field-label">版本名称</span>
-            <el-input v-model="versionForm.version_name" :disabled="!canEdit" placeholder="留空自动生成" />
+            <el-input v-model="versionForm.version_name" :disabled="!canEdit" maxlength="80" placeholder="留空自动生成" />
           </div>
           <div class="field-block compact-field">
             <span class="field-label">版本说明</span>
-            <el-input v-model="versionForm.notes" :disabled="!canEdit" placeholder="记录这次修改的重点" />
+            <el-input v-model="versionForm.notes" :disabled="!canEdit" maxlength="4000" placeholder="记录这次修改的重点" />
           </div>
         </div>
         <textarea
           v-model="versionForm.code"
           class="code-editor"
           :disabled="!canEdit"
+          maxlength="256000"
           spellcheck="false"
           aria-label="RQAlpha 策略代码"
         />
@@ -156,7 +166,6 @@ import { Database, FlaskConical, GitCommitHorizontal, History, Save } from '@luc
 import {
   strategyFreqOptions,
   strategyStatusLabel,
-  strategyStatusOptions,
   strategyTypeOptions
 } from '../utils/labels'
 
@@ -165,6 +174,7 @@ defineProps({
   editorForm: { type: Object, required: true },
   versionForm: { type: Object, required: true },
   versions: { type: Array, default: () => [] },
+  statusOptions: { type: Array, default: () => [] },
   canEdit: { type: Boolean, default: false },
   saving: { type: Boolean, default: false }
 })

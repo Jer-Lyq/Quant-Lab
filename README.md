@@ -2,7 +2,7 @@
 
 Multi-user internal quant research platform.
 
-首版实现数据中心模块：管理员录入股票、ETF、指数或基金代码，后端通过 Tushare 同步日线和周线数据，普通用户登录后查看标的档案、K线、成交量和技术指标。后续研究、策略、回测和报告模块会在流程确认后逐步接入。
+当前已实现数据中心和策略库 Phase 1：管理员录入股票、ETF、指数或基金代码，后端通过 Tushare 同步日线和周线数据；普通用户登录后查看标的档案、K线、成交量和技术指标。策略库支持策略 CRUD、代码版本、基础 RQAlpha 结构校验和关联标的；回测目前保留入口和数据结构，执行器与任务队列仍待接入。
 
 ## 技术栈
 
@@ -56,6 +56,12 @@ curl http://127.0.0.1/api/health
 ```
 
 6. 浏览器访问服务器域名或 IP。
+
+策略模块安全边界与专项检查见 `docs/STRATEGY_SECURITY.md`：
+
+```powershell
+python scripts\check_strategy_security.py
+```
 
 ## 首次使用
 

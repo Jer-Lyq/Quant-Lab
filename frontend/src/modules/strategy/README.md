@@ -22,6 +22,8 @@ modules/strategy/
   utils/labels.js
 ```
 
+后端策略规则与安全边界见 `docs/STRATEGY_SECURITY.md`。策略版本列表只加载元数据，打开或载入某个版本时再读取完整代码。
+
 ## 策略代码约定
 
 第一版统一使用 RQAlpha 风格 Python 代码，基础校验要求至少包含：

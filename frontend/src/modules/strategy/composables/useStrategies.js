@@ -3,6 +3,32 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { apiRequest } from '../../../app/apiClient'
 import { createDefaultStrategyForm, createDefaultVersionForm } from '../utils/labels'
 
+const ERROR_MESSAGES = {
+  discarded_strategy_read_only: '废弃策略为只读状态，请先恢复为草稿后再修改版本或标的。',
+  invalid_instrument_id: '标的参数无效。',
+  json_object_required: '请求数据格式无效，请刷新页面后重试。',
+  request_too_large: '提交内容过大，请缩短策略说明或代码。',
+  new_strategy_must_start_as_draft: '新策略必须先以草稿状态创建。',
+  strategy_backtest_in_progress: '策略正在回测，暂时不能修改代码版本或关联标的。',
+  strategy_code_required: '策略代码不能为空。',
+  strategy_code_too_long: '策略代码超过长度限制。',
+  strategy_database_conflict: '策略数据发生冲突，请刷新后重试。',
+  strategy_has_backtest_history: '该策略已有回测历史，不能直接删除。',
+  strategy_name_required: '请填写策略名称。',
+  strategy_name_too_long: '策略名称不能超过 120 个字符。',
+  strategy_operation_failed: '策略操作失败，请刷新后重试。',
+  strategy_status_transition_denied: '该状态只能由管理员或回测流程维护。',
+  strategy_valid_version_required: '进入待回测或已验证状态前，需要先保存一个校验通过的代码版本。',
+  system_managed_strategy_read_only: '回测中或已验证策略由系统维护，请联系管理员先退回草稿。',
+  strategy_version_in_use: '该版本已有回测记录，不能删除。',
+  strategy_version_name_exists: '版本名称已存在，请使用新的版本名称。',
+  version_name_too_long: '版本名称不能超过 80 个字符。'
+}
+
+function errorMessage(error) {
+  return ERROR_MESSAGES[error.code] || error.message || '策略操作失败'
+}
+
 export function useStrategies(tokenRef, userRef) {
   const loading = ref(false)
   const saving = ref(false)
@@ -18,10 +44,13 @@ export function useStrategies(tokenRef, userRef) {
   const versionForm = reactive(createDefaultVersionForm())
   const createDialogVisible = ref(false)
   const createForm = reactive(createDefaultStrategyForm())
+  let selectionEpoch = 0
 
   const canEdit = computed(() => {
     if (!selected.value || !userRef.value) return false
-    return userRef.value.role === 'admin' || selected.value.author_id === userRef.value.id
+    if (userRef.value.role === 'admin') return true
+    if (['backtesting', 'validated'].includes(selected.value.status)) return false
+    return selected.value.author_id === userRef.value.id
   })
 
   const filteredStrategies = computed(() => {
@@ -94,7 +123,7 @@ export function useStrategies(tokenRef, userRef) {
         await selectStrategy(strategies.value[0])
       }
     } catch (error) {
-      ElMessage.error(error.message)
+      ElMessage.error(errorMessage(error))
     } finally {
       loading.value = false
     }
@@ -106,11 +135,12 @@ export function useStrategies(tokenRef, userRef) {
       const data = await request('/instruments')
       instruments.value = data.instruments || []
     } catch (error) {
-      ElMessage.error(error.message)
+      ElMessage.error(errorMessage(error))
     }
   }
 
   function clearSelected() {
+    selectionEpoch += 1
     selected.value = null
     versions.value = []
     linkedInstruments.value = []
@@ -123,18 +153,36 @@ export function useStrategies(tokenRef, userRef) {
       clearSelected()
       return
     }
+    const currentEpoch = ++selectionEpoch
     loading.value = true
     try {
       const data = await request(`/strategies/${item.id}`)
+      if (currentEpoch !== selectionEpoch) return
       selected.value = data.strategy
-      versions.value = data.versions || []
+      const versionList = data.versions || []
+      versions.value = data.latest_version
+        ? versionList.map((version) => version.id === data.latest_version.id ? data.latest_version : version)
+        : versionList
       linkedInstruments.value = data.instruments || []
       applyStrategyForm(data.strategy)
-      applyVersionForm(versions.value[0], data.default_code)
+      applyVersionForm(data.latest_version, data.default_code)
     } catch (error) {
-      ElMessage.error(error.message)
+      if (currentEpoch === selectionEpoch) ElMessage.error(errorMessage(error))
     } finally {
-      loading.value = false
+      if (currentEpoch === selectionEpoch) loading.value = false
+    }
+  }
+
+  async function loadVersion(version) {
+    if (!version || version.code !== undefined) return version
+    try {
+      const data = await request(`/strategy-versions/${version.id}`)
+      const loaded = data.version
+      versions.value = versions.value.map((item) => item.id === loaded.id ? loaded : item)
+      return loaded
+    } catch (error) {
+      ElMessage.error(errorMessage(error))
+      return null
     }
   }
 
@@ -151,7 +199,7 @@ export function useStrategies(tokenRef, userRef) {
       await selectStrategy(data.strategy)
       ElMessage.success('策略已创建')
     } catch (error) {
-      ElMessage.error(error.message)
+      ElMessage.error(errorMessage(error))
     } finally {
       saving.value = false
     }
@@ -170,7 +218,7 @@ export function useStrategies(tokenRef, userRef) {
       await loadStrategies()
       ElMessage.success('策略属性已保存')
     } catch (error) {
-      ElMessage.error(error.message)
+      ElMessage.error(errorMessage(error))
     } finally {
       saving.value = false
     }
@@ -194,7 +242,7 @@ export function useStrategies(tokenRef, userRef) {
           : `代码版本已保存：${data.version.validation_message}`
       )
     } catch (error) {
-      ElMessage.error(error.message)
+      ElMessage.error(errorMessage(error))
     } finally {
       saving.value = false
     }
@@ -227,10 +275,7 @@ export function useStrategies(tokenRef, userRef) {
       await loadStrategies()
       ElMessage.success('代码版本已删除')
     } catch (error) {
-      const message = error.message === 'strategy_version_in_use'
-        ? '该版本已有回测记录，不能删除'
-        : error.message
-      ElMessage.error(message)
+      ElMessage.error(errorMessage(error))
     } finally {
       saving.value = false
     }
@@ -256,7 +301,7 @@ export function useStrategies(tokenRef, userRef) {
       await loadStrategies()
       ElMessage.success('策略已删除')
     } catch (error) {
-      ElMessage.error(error.message)
+      ElMessage.error(errorMessage(error))
     } finally {
       loading.value = false
     }
@@ -273,7 +318,7 @@ export function useStrategies(tokenRef, userRef) {
       await loadStrategies()
       ElMessage.success('标的已关联')
     } catch (error) {
-      ElMessage.error(error.message)
+      ElMessage.error(errorMessage(error))
     }
   }
 
@@ -287,13 +332,15 @@ export function useStrategies(tokenRef, userRef) {
       await loadStrategies()
       ElMessage.success('关联已移除')
     } catch (error) {
-      ElMessage.error(error.message)
+      ElMessage.error(errorMessage(error))
     }
   }
 
-  function useVersion(version) {
-    applyVersionForm(version)
-    ElMessage.info(`已载入 ${version.version_name} 的代码，可另存为新版本`)
+  async function useVersion(version) {
+    const loaded = await loadVersion(version)
+    if (!loaded) return
+    applyVersionForm(loaded)
+    ElMessage.info(`已载入 ${loaded.version_name} 的代码，可另存为新版本`)
   }
 
   loadStrategies()
@@ -319,6 +366,7 @@ export function useStrategies(tokenRef, userRef) {
     availableInstruments,
     loadStrategies,
     selectStrategy,
+    loadVersion,
     createStrategy,
     saveStrategy,
     saveVersion,

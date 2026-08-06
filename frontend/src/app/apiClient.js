@@ -1,5 +1,14 @@
 const API_BASE = import.meta.env.VITE_API_BASE || '/api'
 
+export class ApiError extends Error {
+  constructor(message, { code = '', status = 0 } = {}) {
+    super(message)
+    this.name = 'ApiError'
+    this.code = code
+    this.status = status
+  }
+}
+
 export async function apiRequest(path, options = {}) {
   const { token = '', headers = {}, ...fetchOptions } = options
   const response = await fetch(`${API_BASE}${path}`, {
@@ -20,7 +29,10 @@ export async function apiRequest(path, options = {}) {
     }
   }
   if (!response.ok) {
-    throw new Error(data.message || data.error || `请求失败 (${response.status})`)
+    throw new ApiError(data.message || data.error || `请求失败 (${response.status})`, {
+      code: data.error || '',
+      status: response.status
+    })
   }
   return data
 }
