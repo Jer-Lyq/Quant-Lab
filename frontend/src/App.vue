@@ -16,6 +16,7 @@
       <StrategyPage v-else-if="activeModule === 'strategy'" :token="token" :user="user" @open-backtest="openBacktest" />
       <BacktestPage
         v-else-if="activeModule === 'backtest'"
+        :token="token"
         :target="backtestTarget"
         @back-to-strategy="activeModule = 'strategy'"
       />

@@ -18,6 +18,19 @@ class Config:
     DATA_DIR = Path(os.getenv("DATA_DIR", PROJECT_DIR / "data"))
     DATABASE_PATH = os.getenv("DATABASE_PATH", str(DATA_DIR / "quant_lab.sqlite3"))
     INSTRUMENT_DATA_DIR = os.getenv("INSTRUMENT_DATA_DIR", str(DATA_DIR / "instruments"))
+    BACKTEST_DATA_DIR = os.getenv("BACKTEST_DATA_DIR", str(DATA_DIR / "backtests"))
+    BACKTEST_RUNNER = os.getenv("BACKTEST_RUNNER", "disabled").strip().lower()
+    BACKTEST_WORKER_POLL_SECONDS = max(0.2, min(float(os.getenv("BACKTEST_WORKER_POLL_SECONDS", "1")), 30))
+    BACKTEST_TIMEOUT_SECONDS = max(10, min(int(os.getenv("BACKTEST_TIMEOUT_SECONDS", "300")), 3600))
+    BACKTEST_JOB_LEASE_SECONDS = max(
+        BACKTEST_TIMEOUT_SECONDS + 30,
+        min(int(os.getenv("BACKTEST_JOB_LEASE_SECONDS", "600")), 7200),
+    )
+    BACKTEST_JOB_MAX_ATTEMPTS = max(1, min(int(os.getenv("BACKTEST_JOB_MAX_ATTEMPTS", "2")), 5))
+    BACKTEST_DOCKER_IMAGE = os.getenv("BACKTEST_DOCKER_IMAGE", "quant-lab-backtest-runner:latest")
+    BACKTEST_HOST_DATA_DIR = os.getenv("BACKTEST_HOST_DATA_DIR", "").strip()
+    RQALPHA_BUNDLE_DIR = os.getenv("RQALPHA_BUNDLE_DIR", str(DATA_DIR / "rqalpha-bundle"))
+    RQALPHA_HOST_BUNDLE_DIR = os.getenv("RQALPHA_HOST_BUNDLE_DIR", "").strip()
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-change-me")
     TUSHARE_TOKEN = os.getenv("TUSHARE_TOKEN", "")
     TUSHARE_HTTP_URL = os.getenv("TUSHARE_HTTP_URL", "https://tuaremax.top")

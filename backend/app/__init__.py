@@ -6,6 +6,7 @@ from .config import Config
 from .db import close_db, init_db
 from .routes.admin import admin_bp
 from .routes.auth import auth_bp
+from .routes.backtests import backtests_bp
 from .routes.market import market_bp
 from .routes.strategies import strategies_bp
 
@@ -24,6 +25,7 @@ def create_app():
     app.register_blueprint(admin_bp, url_prefix="/api/admin")
     app.register_blueprint(market_bp, url_prefix="/api")
     app.register_blueprint(strategies_bp, url_prefix="/api")
+    app.register_blueprint(backtests_bp, url_prefix="/api")
 
     @app.errorhandler(RequestEntityTooLarge)
     def request_too_large(_error):

@@ -187,7 +187,16 @@ def _fetch_fund_basic(pro, ts_code):
 
 def _fetch_stock_bars(pro, ts_code, freq, start, end):
     api = pro.daily if freq == "daily" else pro.weekly
-    return api(ts_code=ts_code, start_date=start, end_date=end)
+    frame = api(ts_code=ts_code, start_date=start, end_date=end)
+    if freq != "daily" or frame is None or frame.empty:
+        return frame
+    try:
+        factors = pro.adj_factor(ts_code=ts_code, start_date=start, end_date=end)
+    except Exception:
+        return frame
+    if factors is None or factors.empty or "adj_factor" not in factors.columns:
+        return frame
+    return frame.merge(factors[["trade_date", "adj_factor"]], on="trade_date", how="left")
 
 
 def _fetch_etf_bars(pro, ts_code, freq, start, end):
@@ -250,6 +259,7 @@ def _frame_to_rows(frame):
                 "close": _number(row.get("close")),
                 "volume": _number(row.get("vol")),
                 "amount": _number(row.get("amount")),
+                "adj_factor": _number(row.get("adj_factor")),
             }
         )
     return rows

@@ -11,6 +11,7 @@ def get_db():
         g.db = sqlite3.connect(db_path)
         g.db.row_factory = sqlite3.Row
         g.db.execute("PRAGMA foreign_keys = ON")
+        g.db.execute("PRAGMA busy_timeout = 5000")
     return g.db
 
 
@@ -25,9 +26,12 @@ def init_db():
     db_path.parent.mkdir(parents=True, exist_ok=True)
     db = sqlite3.connect(db_path)
     try:
+        db.execute("PRAGMA journal_mode = WAL")
+        db.execute("PRAGMA busy_timeout = 5000")
         db.executescript(SCHEMA)
         _migrate_asset_type_constraints(db)
         _migrate_strategy_idea(db)
+        _migrate_backtest_runs(db)
         db.commit()
     finally:
         db.close()
@@ -108,6 +112,29 @@ def _migrate_strategy_idea(db):
     }
     if "strategy_idea" not in columns:
         db.execute("ALTER TABLE strategies ADD COLUMN strategy_idea TEXT")
+
+
+def _migrate_backtest_runs(db):
+    columns = {row[1] for row in db.execute("PRAGMA table_info(backtest_runs)").fetchall()}
+    additions = {
+        "engine_name": "TEXT NOT NULL DEFAULT 'rqalpha'",
+        "engine_version": "TEXT",
+        "strategy_code_hash": "TEXT",
+        "dataset_hash": "TEXT",
+        "dataset_snapshot_path": "TEXT",
+        "normalized_config_json": "TEXT",
+        "config_hash": "TEXT",
+        "adjustment_mode": "TEXT NOT NULL DEFAULT 'qfq'",
+        "worker_version": "TEXT",
+        "exit_code": "INTEGER",
+        "cancel_requested_at": "TEXT",
+        "result_warning": "TEXT",
+        "updated_at": "TEXT",
+    }
+    for name, definition in additions.items():
+        if name not in columns:
+            db.execute(f"ALTER TABLE backtest_runs ADD COLUMN {name} {definition}")
+    db.execute("UPDATE backtest_runs SET updated_at=COALESCE(updated_at, created_at)")
 
 
 SCHEMA = """
@@ -255,6 +282,14 @@ CREATE TABLE IF NOT EXISTS backtest_runs (
     commission_rate REAL NOT NULL DEFAULT 0,
     slippage_rate REAL NOT NULL DEFAULT 0,
     parameters_json TEXT,
+    engine_name TEXT NOT NULL DEFAULT 'rqalpha',
+    engine_version TEXT,
+    strategy_code_hash TEXT,
+    dataset_hash TEXT,
+    dataset_snapshot_path TEXT,
+    normalized_config_json TEXT,
+    config_hash TEXT,
+    adjustment_mode TEXT NOT NULL DEFAULT 'qfq',
     status TEXT NOT NULL DEFAULT 'pending'
         CHECK (status IN ('pending', 'queued', 'running', 'success', 'failed', 'cancelled')),
     error_message TEXT,
@@ -265,8 +300,13 @@ CREATE TABLE IF NOT EXISTS backtest_runs (
     volatility REAL,
     win_rate REAL,
     trade_count INTEGER,
+    worker_version TEXT,
+    exit_code INTEGER,
+    cancel_requested_at TEXT,
+    result_warning TEXT,
     created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     queued_at TEXT,
     started_at TEXT,
     finished_at TEXT
@@ -306,4 +346,7 @@ ON backtest_runs(strategy_id, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_backtest_jobs_status
 ON backtest_jobs(status, priority, created_at);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_backtest_jobs_run
+ON backtest_jobs(run_id);
 """

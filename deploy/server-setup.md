@@ -42,9 +42,31 @@ SECRET_KEY=
 TUSHARE_TOKEN=
 ADMIN_USERNAME=
 ADMIN_PASSWORD=
+BACKTEST_HOST_DATA_DIR=/opt/quant-lab/app/data
+RQALPHA_HOST_BUNDLE_DIR=/opt/quant-lab/app/data/rqalpha-bundle
 ```
 
-## 4. 启动服务
+## 4. 准备 RQAlpha Runner
+
+构建独立执行镜像：
+
+```bash
+docker build -t quant-lab-backtest-runner:latest backend/backtest_runtime
+mkdir -p data/rqalpha-bundle data/backtests
+```
+
+下载 RQAlpha 基础数据 bundle：
+
+```bash
+docker run --rm --user 0:0 \
+  --entrypoint rqalpha \
+  -v "$PWD/data/rqalpha-bundle:/root/.rqalpha/bundle" \
+  quant-lab-backtest-runner:latest update-bundle
+```
+
+RQAlpha 6.3.0 包含额外商业使用限制。本项目按个人学习和研究用途接入；商业使用前需要单独核对并取得相应授权。
+
+## 5. 启动服务
 
 ```bash
 docker compose up -d --build
@@ -53,10 +75,13 @@ docker compose exec backend flask create-admin
 docker compose ps
 ```
 
-## 5. 验证
+`backtest-worker` 通过受控 Docker CLI 启动一次性 Runner。策略容器禁用网络、只读根文件系统、移除 Linux capabilities，并限制 CPU、内存和进程数。不要把 Docker socket 挂载给 Web 后端或策略 Runner。
+
+## 6. 验证
 
 ```bash
 curl http://127.0.0.1/api/health
+docker compose logs --tail=100 backtest-worker
 ```
 
 浏览器访问：
@@ -65,7 +90,7 @@ curl http://127.0.0.1/api/health
 http://服务器IP
 ```
 
-## 6. 配置 HTTPS
+## 7. 配置 HTTPS
 
 域名解析到服务器后：
 
@@ -80,7 +105,7 @@ sudo certbot certonly --standalone -d your-domain.com
 docker compose restart nginx
 ```
 
-## 7. 备份
+## 8. 备份
 
 ```bash
 APP_DIR=/opt/quant-lab/app sh scripts/backup.sh
@@ -91,4 +116,3 @@ APP_DIR=/opt/quant-lab/app sh scripts/backup.sh
 ```text
 0 2 * * * APP_DIR=/opt/quant-lab/app sh /opt/quant-lab/app/scripts/backup.sh
 ```
-

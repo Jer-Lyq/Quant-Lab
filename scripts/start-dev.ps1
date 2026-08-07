@@ -50,15 +50,26 @@ function Set-DevDataEnvironment {
         $instrumentDataDir = Join-Path $Root $instrumentDataDir
     }
 
-    New-Item -ItemType Directory -Force -Path $dataDir, $instrumentDataDir, (Split-Path -Parent $databasePath) | Out-Null
+    $backtestDataDir = [Environment]::GetEnvironmentVariable("QUANT_LAB_BACKTEST_DATA_DIR", "Process")
+    if (-not $backtestDataDir) {
+        $backtestDataDir = Join-Path $dataDir "backtests"
+    }
+    elseif (-not [System.IO.Path]::IsPathRooted($backtestDataDir)) {
+        $backtestDataDir = Join-Path $Root $backtestDataDir
+    }
+
+    New-Item -ItemType Directory -Force -Path $dataDir, $instrumentDataDir, $backtestDataDir, (Split-Path -Parent $databasePath) | Out-Null
     [Environment]::SetEnvironmentVariable("DATA_DIR", $dataDir, "Process")
     [Environment]::SetEnvironmentVariable("DATABASE_PATH", $databasePath, "Process")
     [Environment]::SetEnvironmentVariable("INSTRUMENT_DATA_DIR", $instrumentDataDir, "Process")
+    [Environment]::SetEnvironmentVariable("BACKTEST_DATA_DIR", $backtestDataDir, "Process")
+    [Environment]::SetEnvironmentVariable("BACKTEST_RUNNER", "dev", "Process")
 
     return [PSCustomObject]@{
         DataDir = $dataDir
         DatabasePath = $databasePath
         InstrumentDataDir = $instrumentDataDir
+        BacktestDataDir = $backtestDataDir
     }
 }
 
@@ -137,12 +148,12 @@ function Start-DevProcess {
 
 Repair-ProcessPathEnvironment
 $devData = Set-DevDataEnvironment
+$python = Get-CommandPath -Names @("python.exe", "python") -EnvName "QUANT_LAB_PYTHON"
 
 if (Test-PortInUse $BackendPort) {
     Write-Host "Backend port $BackendPort is already in use; leaving it running."
 }
 else {
-    $python = Get-CommandPath -Names @("python.exe", "python") -EnvName "QUANT_LAB_PYTHON"
     $backendOut = Join-Path $LogDir "backend-dev.out.log"
     $backendErr = Join-Path $LogDir "backend-dev.err.log"
     $backendPid = Join-Path $LogDir "backend-dev.pid"
@@ -157,6 +168,29 @@ else {
         -PidFile $backendPid
     Wait-ForPort -Port $BackendPort -ServiceName "Backend" -TimeoutSeconds $StartupTimeoutSeconds
     Write-Host "Started backend on http://127.0.0.1:$BackendPort"
+}
+
+$workerPid = Join-Path $LogDir "backtest-worker.pid"
+$workerRunning = $false
+if (Test-Path -LiteralPath $workerPid) {
+    $existingWorkerId = Get-Content -LiteralPath $workerPid -ErrorAction SilentlyContinue
+    if ($existingWorkerId) {
+        $workerRunning = $null -ne (Get-Process -Id $existingWorkerId -ErrorAction SilentlyContinue)
+    }
+}
+if ($workerRunning) {
+    Write-Host "Backtest worker is already running; leaving it running."
+}
+else {
+    Start-DevProcess `
+        -Title "Quant Lab Backtest Worker" `
+        -FilePath $python `
+        -ArgumentList @("-m", "app.workers.backtest_worker") `
+        -WorkingDirectory $BackendDir `
+        -OutLog (Join-Path $LogDir "backtest-worker.out.log") `
+        -ErrLog (Join-Path $LogDir "backtest-worker.err.log") `
+        -PidFile $workerPid
+    Write-Host "Started backtest worker with development fixture runner."
 }
 
 if (Test-PortInUse $FrontendPort) {

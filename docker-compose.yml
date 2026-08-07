@@ -8,11 +8,33 @@ services:
       DATA_DIR: /app/data
       DATABASE_PATH: /app/data/quant_lab.sqlite3
       INSTRUMENT_DATA_DIR: /app/data/instruments
+      BACKTEST_DATA_DIR: /app/data/backtests
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
     expose:
       - "8000"
+    restart: unless-stopped
+
+  backtest-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    env_file:
+      - .env
+    environment:
+      DATA_DIR: /app/data
+      DATABASE_PATH: /app/data/quant_lab.sqlite3
+      INSTRUMENT_DATA_DIR: /app/data/instruments
+      BACKTEST_DATA_DIR: /app/data/backtests
+      BACKTEST_RUNNER: docker
+      BACKTEST_HOST_DATA_DIR: ${BACKTEST_HOST_DATA_DIR:-/opt/quant-lab/app/data}
+      RQALPHA_BUNDLE_DIR: /app/data/rqalpha-bundle
+      RQALPHA_HOST_BUNDLE_DIR: ${RQALPHA_HOST_BUNDLE_DIR:-/opt/quant-lab/app/data/rqalpha-bundle}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
 
   frontend:

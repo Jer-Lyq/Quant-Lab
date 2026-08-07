@@ -25,3 +25,17 @@ foreach ($port in $Ports) {
         }
     }
 }
+
+$Root = Split-Path -Parent $PSScriptRoot
+$workerPidFile = Join-Path $Root "logs\backtest-worker.pid"
+if (Test-Path -LiteralPath $workerPidFile) {
+    $workerId = Get-Content -LiteralPath $workerPidFile -ErrorAction SilentlyContinue
+    if ($workerId) {
+        $worker = Get-Process -Id $workerId -ErrorAction SilentlyContinue
+        if ($worker) {
+            Stop-Process -Id $workerId -Force
+            Write-Host "Stopped backtest worker (pid $workerId)."
+        }
+    }
+    Remove-Item -LiteralPath $workerPidFile -Force
+}

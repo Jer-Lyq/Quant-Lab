@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS ohlcv_bars (
     close REAL,
     volume REAL,
     amount REAL,
+    adj_factor REAL,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(freq, trade_date)
 );
@@ -81,10 +82,10 @@ def read_ohlcv_bars(instrument, freq):
         return []
     with sqlite3.connect(path) as conn:
         conn.row_factory = sqlite3.Row
-        conn.executescript(OHLCV_SCHEMA)
+        _ensure_ohlcv_schema(conn)
         rows = conn.execute(
             """
-            SELECT trade_date, open, high, low, close, volume, amount
+            SELECT trade_date, open, high, low, close, volume, amount, adj_factor
             FROM ohlcv_bars
             WHERE freq=?
             ORDER BY trade_date ASC
@@ -98,7 +99,7 @@ def replace_ohlcv_bars(instrument, rows_by_freq, source="tushare"):
     path = ohlcv_path(instrument)
     path.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(path) as conn:
-        conn.executescript(OHLCV_SCHEMA)
+        _ensure_ohlcv_schema(conn)
         conn.execute("BEGIN")
         conn.execute("DELETE FROM ohlcv_bars")
         total_rows = 0
@@ -110,8 +111,8 @@ def replace_ohlcv_bars(instrument, rows_by_freq, source="tushare"):
                 conn.execute(
                     """
                     INSERT INTO ohlcv_bars
-                    (freq, trade_date, open, high, low, close, volume, amount)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    (freq, trade_date, open, high, low, close, volume, amount, adj_factor)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         freq,
@@ -122,6 +123,7 @@ def replace_ohlcv_bars(instrument, rows_by_freq, source="tushare"):
                         row["close"],
                         row["volume"],
                         row["amount"],
+                        row.get("adj_factor"),
                     ),
                 )
                 total_rows += 1
@@ -164,6 +166,7 @@ def ensure_ohlcv_from_legacy(instrument):
                 "close": row["close"],
                 "volume": row["volume"],
                 "amount": row["amount"],
+                "adj_factor": row["adj_factor"] if "adj_factor" in row.keys() else None,
             }
         )
     replace_ohlcv_bars(instrument, rows_by_freq, source="legacy-price_bars")
@@ -194,6 +197,14 @@ def _upsert_catalog_dataset(instrument, path, row_count, min_date, max_date, sou
 
 def _ensure_catalog_dataset_table(db):
     db.executescript(CATALOG_DATASET_SCHEMA)
+
+
+def _ensure_ohlcv_schema(conn):
+    conn.executescript(OHLCV_SCHEMA)
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(ohlcv_bars)").fetchall()}
+    if "adj_factor" not in columns:
+        conn.execute("ALTER TABLE ohlcv_bars ADD COLUMN adj_factor REAL")
+        conn.commit()
 
 
 def _relative_path(path):

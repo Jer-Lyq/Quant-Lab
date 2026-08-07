@@ -2,7 +2,9 @@
 
 Multi-user internal quant research platform.
 
-当前已实现数据中心和策略库 Phase 1：管理员录入股票、ETF、指数或基金代码，后端通过 Tushare 同步日线和周线数据；普通用户登录后查看标的档案、K线、成交量和技术指标。策略库支持策略 CRUD、代码版本、基础 RQAlpha 结构校验和关联标的；回测目前保留入口和数据结构，执行器与任务队列仍待接入。
+当前已实现数据中心、策略库和回测任务链路：管理员录入股票、ETF、指数或基金代码，后端通过 Tushare 同步日线和周线数据；策略库支持策略 CRUD、不可变代码版本、基础 RQAlpha 结构校验和关联标的；回测模块支持单标的日线任务、SQLite 异步队列、前复权快照、结果归档、收益/回撤曲线和成交明细。
+
+本地开发默认使用带明显标记的流程验证执行器，不执行策略代码。生产回测使用独立 RQAlpha 容器、只读数据 bundle、禁用网络和资源限制，避免用户 Python 代码接触 Flask 数据库和密钥。
 
 ## 技术栈
 
@@ -15,7 +17,11 @@ Multi-user internal quant research platform.
 
 - `frontend/src/app/`：应用壳层、登录、认证状态、API 客户端。
 - `frontend/src/modules/data-center/`：数据中心模块。
+- `frontend/src/modules/strategy/`：策略、版本与关联标的管理。
+- `frontend/src/modules/backtest/`：任务创建、状态、结果和成交展示。
 - `backend/app/services/data_providers/`：行情数据源 provider 注册口，当前只启用 Tushare。
+- `backend/app/workers/backtest_worker.py`：回测队列 Worker。
+- `backend/backtest_runtime/`：隔离 RQAlpha Runner 镜像。
 - `docs/BUILD_NOTES.md`：搭建期间遇到的问题和处理记录。
 - `docs/ENGINEERING_PLAN.md`：后续搭建阶段和研究模块边界。
 
@@ -62,6 +68,20 @@ curl http://127.0.0.1/api/health
 ```powershell
 python scripts\check_strategy_security.py
 ```
+
+完整本地检查包含回测任务、Worker、行情快照和结果产物：
+
+```powershell
+python scripts\check_local.py
+```
+
+Windows 快捷启动会同时启动 Flask、Vite 和开发 Worker：
+
+```powershell
+.\start-quant-lab.cmd
+```
+
+开发 Worker 的结果会标记为“开发模拟执行器”，不能作为策略表现结论。
 
 ## 首次使用
 
